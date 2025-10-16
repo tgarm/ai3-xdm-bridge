@@ -13,10 +13,12 @@
     "@polkadot/api": "^16.4.9",
     "@polkadot/extension-dapp": "^0.62.2",
     "ethers": "^6.15.0",
+    "vue": "^3.5.22",
     "zod": "^4.1.12"
   },
   "devDependencies": {
-    "vite": "^5.4.8"
+    "@vitejs/plugin-vue": "^6.0.1",
+    "vite": "^6.4.0"
   },
   "main": "app.js",
   "keywords": [],
