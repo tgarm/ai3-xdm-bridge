@@ -1,0 +1,26 @@
+{
+  "name": "ai3-xdm-bridge",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@autonomys/auto-utils": "^1.5.18",
+    "@autonomys/auto-xdm": "^1.5.18",
+    "@polkadot/api": "^16.4.9",
+    "@polkadot/extension-dapp": "^0.62.2",
+    "ethers": "^6.15.0",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "vite": "^5.4.8"
+  },
+  "main": "app.js",
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": ""
+}

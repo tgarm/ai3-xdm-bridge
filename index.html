@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI3 Cross-Domain Transfer App</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }
+    button { margin: 5px; padding: 10px; }
+    #panel { border: 1px solid #ccc; padding: 20px; margin: 20px 0; }
+    input, select { margin: 5px; padding: 5px; width: 200px; }
+    .warning { color: orange; font-style: italic; }
+  </style>
+</head>
+<body>
+  <h1>AI3 Cross-Domain Transfer</h1>
+  <div>
+    <button id="connectConsensus">1. Connect Consensus Wallet (SubWallet/Talisman)</button>
+    <button id="connectEVM">2. Connect Auto-EVM Wallet (MetaMask)</button>
+  </div>
+  
+  <div id="panel">
+    <p>Consensus Balance: <span id="consensusBalance">0</span> AI3</p>
+    <p>Auto-EVM Balance: <span id="evmBalance">0</span> AI3</p>
+    <p>Connected Consensus Address: <span id="consensusAddress">-</span></p>
+    <p>Connected EVM Address: <span id="evmAddress">-</span></p>
+    <div id="evmWarning" class="warning" style="display: none;">Note: EVM → Consensus transfers require a Substrate signer (e.g., SubWallet on Auto-EVM). Use Polkadot.js Apps for now.</div>
+  </div>
+  
+  <select id="direction">
+    <option value="consensusToEVM">Transfer from Consensus to Auto-EVM</option>
+    <option value="evmToConsensus">Transfer from Auto-EVM to Consensus</option>
+  </select>
+  <br>
+  <input id="amount" type="number" step="0.000000000000000001" placeholder="Amount in AI3 (e.g., 1.0)">
+  <button id="transferBtn" disabled>Transfer AI3</button>
+  
+  <script type="module" src="app.js"></script>
+</body>
+</html>
