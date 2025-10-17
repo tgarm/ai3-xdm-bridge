@@ -48,7 +48,15 @@ h1 {
   text-align: center;
   color: #2c3e50;
 }
-.top-container, .bottom-container {
+.top-container {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+.top-container .panel {
+  flex: 1;
+}
+.bottom-container {
   display: flex;
   gap: 20px;
   margin-bottom: 20px;

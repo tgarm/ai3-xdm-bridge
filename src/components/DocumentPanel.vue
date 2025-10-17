@@ -3,8 +3,11 @@
   <div class="panel">
     <h2>Documentation</h2>
     <div class="doc-content">
+      <h3>Consensus → EVM Transfers</h3>
+      <p>Handled automatically via the app. Wait ~10 min for funds to appear.</p>
+      
       <h3>EVM → Consensus Transfers</h3>
-      <p>These require manual Substrate signing:</p>
+      <p>These require manual Substrate signing on Auto-EVM:</p>
       <ol>
         <li>Go to <a href="https://polkadot.js.org/apps/?rpc=wss://auto-evm.mainnet.autonomys.xyz/ws#/extrinsics" target="_blank">Polkadot.js Apps</a></li>
         <li>Select your EVM-derived account (import 0x private key as "substrate" type if needed).</li>
@@ -16,13 +19,11 @@
       </ol>
       <p>Or use SubWallet connected to Auto-EVM.</p>
       
-      <h3>Consensus → EVM Transfers</h3>
-      <p>Handled automatically via the app. Wait ~10 min for funds to appear.</p>
-      
       <h3>Setup Notes</h3>
       <ul>
-        <li>Consensus: Use SubWallet/Talisman with Autonomys network.</li>
-        <li>EVM: Add Auto-EVM chain (ID 870) to MetaMask via <a href="https://chainlist.org/chain/870" target="_blank">Chainlist</a>.</li>
+        <li>Consensus: Use SubWallet/Talisman with Autonomys Consensus (RPC: wss://rpc.mainnet.autonomys.xyz/ws, SS58 6094).</li>
+        <li>EVM: Add Auto-EVM to MetaMask (ID 870 via <a href="https://chainlist.org/chain/870" target="_blank">Chainlist</a>).</li>
+        <li>Minimum transfer: 5 AI3.</li>
       </ul>
     </div>
   </div>

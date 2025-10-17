@@ -7,7 +7,7 @@
       <option value="evmToConsensus">Auto-EVM → Consensus</option>
     </select>
     <div class="amount-section">
-      <input v-model.number="store.amount" type="number" step="0.000000000000000001" placeholder="Amount in AI3">
+      <input v-model.number="store.amount" type="number" step="0.000000000000000001" placeholder="Amount in AI3" min="5">
       <div class="percent-buttons">
         <button @click="store.setAmount(0)">0%</button>
         <button @click="store.setAmount(25)">25%</button>
@@ -15,6 +15,7 @@
         <button @click="store.setAmount(75)">75%</button>
         <button @click="store.setAmount(100)">100%</button>
       </div>
+      <p class="min-note">Minimum transfer: 5 AI3</p>
     </div>
     <div v-if="store.direction === 'evmToConsensus'" class="warning">
       Note: Requires manual Substrate signing on Polkadot.js Apps.
@@ -71,6 +72,12 @@ select, input[type="number"] {
 }
 .percent-buttons button:hover {
   background-color: #2980b9;
+}
+.min-note {
+  font-size: 14px;
+  color: #7f8c8d;
+  margin: 5px 0 0 0;
+  text-align: center;
 }
 button {
   background-color: #3498db;

@@ -12,13 +12,14 @@ const EVM_RPC_HTTP = 'https://auto-evm.mainnet.autonomys.xyz';
 const DOMAIN_ID = 0;
 const DECIMALS = 18n;
 const AUTONOMYS_PREFIX = 6094;
+const MIN_TRANSFER_AMOUNT = 5; // Minimum transfer amount in AI3
 const LOCAL_STORAGE_KEY_CONSENSUS = 'ai3_consensus_address';
 const LOCAL_STORAGE_KEY_EVM = 'ai3_evm_address';
 
 export const useTransferStore = defineStore('transfer', () => {
   // State
-  const consensusApi = ref(null); // Signed API for transactions
-  const readOnlyConsensusApi = ref(null); // Read-only for queries
+  const consensusApi = ref(null); // Signed API for Consensus transactions/queries
+  const readOnlyConsensusApi = ref(null); // Read-only for Consensus queries
   const consensusAccount = ref(null);
   const metamaskProvider = ref(null);
   const metamaskAddress = ref(null);
@@ -44,12 +45,11 @@ export const useTransferStore = defineStore('transfer', () => {
       : (evmBalance.value ? parseFloat(evmBalance.value) : 0);
   });
   const canTransfer = computed(() => {
-    const connected = consensusConnected.value && evmConnected.value;
-    const validAmount = amount.value > 0;
+    const validAmount = amount.value >= MIN_TRANSFER_AMOUNT;
     if (direction.value === 'consensusToEVM') {
-      return connected && validAmount && !isTransferring.value;
+      return consensusConnected.value && evmConnected.value && validAmount && !isTransferring.value;
     } else {
-      return connected && validAmount;
+      return evmConnected.value && consensusConnected.value && validAmount;
     }
   });
 
@@ -63,18 +63,24 @@ export const useTransferStore = defineStore('transfer', () => {
   };
 
   // Initialize from localStorage on store creation
-  if (localStorage.getItem(LOCAL_STORAGE_KEY_CONSENSUS)) {
-    consensusAddress.value = localStorage.getItem(LOCAL_STORAGE_KEY_CONSENSUS);
-    addLog(`Loaded consensus address from localStorage: ${consensusAddress.value}`);
-  }
-  if (localStorage.getItem(LOCAL_STORAGE_KEY_EVM)) {
-    evmAddress.value = localStorage.getItem(LOCAL_STORAGE_KEY_EVM);
-    metamaskAddress.value = evmAddress.value;
-    addLog(`Loaded EVM address from localStorage: ${evmAddress.value}`);
-  }
+  const initFromStorage = () => {
+    const storedConsensus = localStorage.getItem(LOCAL_STORAGE_KEY_CONSENSUS);
+    if (storedConsensus) {
+      consensusAddress.value = storedConsensus;
+      addLog(`Loaded consensus address from localStorage: ${consensusAddress.value}`);
+    }
+    const storedEVM = localStorage.getItem(LOCAL_STORAGE_KEY_EVM);
+    if (storedEVM) {
+      evmAddress.value = storedEVM;
+      metamaskAddress.value = evmAddress.value;
+      addLog(`Loaded EVM address from localStorage: ${evmAddress.value}`);
+    }
+  };
 
-  // Create read-only API if address is set
-  const initReadOnlyApi = async () => {
+  initFromStorage();
+
+  // Create read-only APIs if addresses are set
+  const initReadOnlyApis = async () => {
     if (consensusAddress.value && !readOnlyConsensusApi.value) {
       try {
         const provider = new WsProvider(CONSENSUS_RPC);
@@ -82,34 +88,33 @@ export const useTransferStore = defineStore('transfer', () => {
         readOnlyConsensusApi.value = markRaw(apiInstance);
         await readOnlyConsensusApi.value.isReady;
         addLog('Read-only Consensus API initialized');
-        await updateBalances();
-        await fetchChainTransfers();
       } catch (error) {
-        addLog(`Error initializing read-only API: ${error.message}`);
+        addLog(`Error initializing read-only Consensus API: ${error.message}`);
       }
     }
-    if (evmAddress.value && !metamaskProvider.value) {
-      if (typeof window.ethereum !== 'undefined') {
-        try {
-          const rawProvider = new ethers.BrowserProvider(window.ethereum);
-          metamaskProvider.value = markRaw(rawProvider);
-          await updateBalances();
-          addLog('EVM provider initialized from stored address');
-        } catch (error) {
-          addLog(`Error initializing EVM provider: ${error.message}`);
-        }
+    if (evmAddress.value && !metamaskProvider.value && typeof window.ethereum !== 'undefined') {
+      try {
+        const rawProvider = new ethers.BrowserProvider(window.ethereum);
+        metamaskProvider.value = markRaw(rawProvider);
+        addLog('EVM provider initialized from stored address');
+      } catch (error) {
+        addLog(`Error initializing EVM provider: ${error.message}`);
       }
     }
+    await updateBalances();
+    await fetchChainTransfers();
   };
 
-  initReadOnlyApi();
+  initReadOnlyApis();
 
   // Actions
   const updateBalances = async () => {
-    if (readOnlyConsensusApi.value && consensusAddress.value) {
+    // Consensus balance
+    const consensusApiToUse = readOnlyConsensusApi.value || consensusApi.value;
+    if (consensusApiToUse && consensusAddress.value) {
       consensusBalanceLoading.value = true;
       try {
-        const { data: { free } } = await readOnlyConsensusApi.value.query.system.account(consensusAddress.value);
+        const { data: { free } } = await consensusApiToUse.query.system.account(consensusAddress.value);
         consensusBalance.value = (Number(free) / Number(10n ** DECIMALS)).toFixed(4);
         addLog(`Consensus balance updated: ${consensusBalance.value} AI3`);
       } catch (error) {
@@ -118,6 +123,7 @@ export const useTransferStore = defineStore('transfer', () => {
         consensusBalanceLoading.value = false;
       }
     }
+    // EVM balance
     if (metamaskProvider.value && evmAddress.value) {
       evmBalanceLoading.value = true;
       try {
@@ -139,14 +145,13 @@ export const useTransferStore = defineStore('transfer', () => {
       addLog('Fetching chain transfers...');
       const transfers = await chainTransfers(apiToUse);
       const humanTransfers = transfers.toHuman();
-      // Handle object structure with keys: transfersIn, transfersOut, etc.
       if (humanTransfers && typeof humanTransfers === 'object') {
         const allTransfers = [
           ...(humanTransfers.transfersIn ? Object.values(humanTransfers.transfersIn) : []),
           ...(humanTransfers.transfersOut ? Object.values(humanTransfers.transfersOut) : []),
           ...(humanTransfers.rejectedTransfersClaimed ? Object.values(humanTransfers.rejectedTransfersClaimed) : []),
           ...(humanTransfers.transfersRejected ? Object.values(humanTransfers.transfersRejected) : [])
-        ].filter(tx => tx); // Filter out undefined/null
+        ].filter(tx => tx);
         fetchedTransactions.value = allTransfers;
         addLog(`Fetched ${allTransfers.length} transfers from chain (transfersIn: ${Object.keys(humanTransfers.transfersIn || {}).length}, transfersOut: ${Object.keys(humanTransfers.transfersOut || {}).length}, rejectedClaimed: ${Object.keys(humanTransfers.rejectedTransfersClaimed || {}).length}, rejected: ${Object.keys(humanTransfers.transfersRejected || {}).length})`);
       } else {
@@ -166,7 +171,6 @@ export const useTransferStore = defineStore('transfer', () => {
       addLog('Fetching unconfirmed transfers...');
       const unconfirmed = await allUnconfirmedTransfers(apiToUse);
       const humanUnconfirmed = unconfirmed.toHuman();
-      // Similar handling; perhaps merge or log
       addLog(`Fetched unconfirmed transfers: ${Array.isArray(humanUnconfirmed) ? humanUnconfirmed.length : 'non-array'}`);
     } catch (error) {
       addLog(`Error fetching unconfirmed transfers: ${error.message}`);
@@ -192,8 +196,8 @@ export const useTransferStore = defineStore('transfer', () => {
       
       const provider = new WsProvider(CONSENSUS_RPC);
       const apiInstance = await ApiPromise.create({ provider });
-      consensusApi.value = markRaw(apiInstance); // Mark as non-reactive to prevent proxy issues with private fields
-      await consensusApi.value.isReady; // Wait for API to be ready
+      consensusApi.value = markRaw(apiInstance);
+      await consensusApi.value.isReady;
       const injector = await web3FromAddress(consensusAccount.value.address);
       if (!injector) {
         throw new Error('No injector found for address');
@@ -201,7 +205,7 @@ export const useTransferStore = defineStore('transfer', () => {
       consensusApi.value.setSigner(injector.signer);
       addLog('Consensus API ready and signer set');
       await updateBalances();
-      await fetchChainTransfers(); // Initial fetch
+      await fetchChainTransfers();
       addLog('Consensus connection successful');
     } catch (error) {
       console.error('Consensus connection failed:', error);
@@ -236,14 +240,19 @@ export const useTransferStore = defineStore('transfer', () => {
   };
 
   const setAmount = (percent) => {
-    amount.value = sourceBalance.value * (percent / 100);
-    addLog(`Amount set to ${amount.value} AI3 (${percent}%)`);
+    const newAmount = sourceBalance.value * (percent / 100);
+    amount.value = newAmount >= MIN_TRANSFER_AMOUNT ? newAmount : 0;
+    if (newAmount < MIN_TRANSFER_AMOUNT) {
+      addLog(`Amount set to 0 (below minimum ${MIN_TRANSFER_AMOUNT} AI3)`);
+    } else {
+      addLog(`Amount set to ${amount.value} AI3 (${percent}%)`);
+    }
   };
 
   const performTransfer = async () => {
-    if (!amount.value || amount.value <= 0) {
-      addLog('Invalid amount provided');
-      alert('Invalid amount');
+    if (!amount.value || amount.value < MIN_TRANSFER_AMOUNT) {
+      addLog('Amount below minimum transfer amount');
+      alert(`Minimum transfer amount is ${MIN_TRANSFER_AMOUNT} AI3`);
       return;
     }
     const amountWei = BigInt(Math.floor(amount.value * Number(10n ** DECIMALS)));
@@ -261,12 +270,12 @@ export const useTransferStore = defineStore('transfer', () => {
     try {
       if (direction.value === 'consensusToEVM') {
         if (!consensusApi.value || !metamaskAddress.value) {
-          addLog('Missing API or EVM address for transfer');
+          addLog('Missing Consensus API or EVM address for transfer');
           alert('Connect both wallets first.');
           newTx.status = 'failed';
           return;
         }
-        addLog('Creating transfer transaction...');
+        addLog('Creating Consensus to EVM transfer...');
         isTransferring.value = true;
         const tx = await transferToDomainAccount20Type(consensusApi.value, DOMAIN_ID, metamaskAddress.value, amountWei.toString());
         addLog('Transfer extrinsic prepared');
@@ -282,8 +291,8 @@ export const useTransferStore = defineStore('transfer', () => {
             addLog('Transaction finalized');
             isTransferring.value = false;
             updateBalances();
-            fetchUnconfirmedTransfers(); // Refresh after completion
-            fetchChainTransfers(); // Also refresh history
+            fetchUnconfirmedTransfers();
+            fetchChainTransfers();
             alert('Transfer to Auto-EVM finalized!');
           }
           if (status.isRetracted) {
