@@ -1,0 +1,73 @@
+<!-- src/App.vue -->
+<template>
+  <div class="app">
+    <h1>AI3 Cross-Domain Transfer</h1>
+    
+    <div class="top-container">
+      <SubstrateWalletPanel />
+      <EVMWalletPanel />
+    </div>
+    
+    <div class="bottom-container">
+      <TokenTransferPanel />
+      <div class="status-container">
+        <LoggingPanel />
+        <TransactionHistoryPanel />
+      </div>
+    </div>
+    
+    <div class="doc-container">
+      <DocumentPanel />
+    </div>
+  </div>
+</template>
+
+<script setup>
+import SubstrateWalletPanel from './components/SubstrateWalletPanel.vue';
+import EVMWalletPanel from './components/EVMWalletPanel.vue';
+import TokenTransferPanel from './components/TokenTransferPanel.vue';
+import LoggingPanel from './components/LoggingPanel.vue';
+import TransactionHistoryPanel from './components/TransactionHistoryPanel.vue';
+import DocumentPanel from './components/DocumentPanel.vue';
+</script>
+
+<style>
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+  background-color: #f5f5f5;
+  color: #333;
+}
+.app {
+  display: flex;
+  flex-direction: column;
+}
+h1 {
+  text-align: center;
+  color: #2c3e50;
+}
+.top-container, .bottom-container {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+.status-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  flex: 1;
+}
+.doc-container {
+  margin-top: 20px;
+}
+@media (max-width: 768px) {
+  .top-container, .bottom-container {
+    flex-direction: column;
+  }
+  .status-container {
+    flex-direction: column;
+  }
+}
+</style>
