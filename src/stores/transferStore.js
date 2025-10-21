@@ -20,6 +20,8 @@ const EVM_RPC_URLS = ['https://auto-evm.mainnet.autonomys.xyz'];
 const EVM_NATIVE_CURRENCY = { name: 'AI3', symbol: 'AI3', decimals: 18 };
 const EVM_EXPLORER_URLS = ['https://explorer.autonomys.xyz'];
 
+const SUBSCAN_BASE = import.meta.env.DEV ? '/subscan' : 'https://autonomys.api.subscan.io';
+
 export const useTransferStore = defineStore('transfer', () => {
   // State
   const consensusApi = ref(null); // Signed API for Consensus transactions/queries
@@ -143,23 +145,28 @@ export const useTransferStore = defineStore('transfer', () => {
   };
 
   const fetchTransactions = async () => {
-    // Consensus transporter transfers via Subscan V2
+    // Consensus transporter transfers via Subscan V2 + Polkadot API for details
     let consensusTxs = [];
     if (consensusAddress.value) {
+      const apiToUse = readOnlyConsensusApi.value || consensusApi.value;
+      if (!apiToUse) {
+        addLog('No Consensus API available for details fetching');
+        return;
+      }
       try {
-        addLog('Fetching Consensus transporter transfers via Subscan API V2...');
-        const baseUrl = 'https://autonomys.api.subscan.io';
-        const row = 100; // Max per page
+        addLog('Fetching Consensus extrinsics list via Subscan API V2...');
+        const baseUrl = SUBSCAN_BASE;
+        const row = 100;
         let page = 0;
         let hasMore = true;
-        const allTxs = [];
+        const allExtrinsics = [];
 
         while (hasMore) {
-          const response = await fetch(`${baseUrl}/api/v2/scan/extrinsics`, {
+          const url = `${baseUrl}/api/v2/scan/extrinsics`;
+          const response = await fetch(url, {
             method: 'POST',
             headers: { 
               'Content-Type': 'application/json',
-              // Optional: 'x-api-key': 'your-key-here' for pro tier
             },
             body: JSON.stringify({
               address: consensusAddress.value,
@@ -173,7 +180,7 @@ export const useTransferStore = defineStore('transfer', () => {
           }
 
           const data = await response.json();
-          console.log('Subscan Extrinsics Response (page ' + page + '):', JSON.stringify(data, null, 2)); // Full output logging
+          console.log('Subscan Extrinsics Response (page ' + page + '):', JSON.stringify(data, null, 2));
           addLog(`Subscan extrinsics page ${page} fetched: ${data.data?.extrinsics?.length || 0} items`);
 
           if (data.code !== 0) {
@@ -181,101 +188,167 @@ export const useTransferStore = defineStore('transfer', () => {
           }
 
           const txs = data.data.extrinsics || [];
-          allTxs.push(...txs);
+          allExtrinsics.push(...txs);
           hasMore = txs.length === row;
           page++;
-          if (page > 50) break; // Safety limit for ~5k txs; adjust as needed
+          if (page > 10) break; // Limit to recent for performance
         }
 
-        // Filter and map only transporter.transfer extrinsics
-        consensusTxs = allTxs
+        // Filter to transporter.transfer
+        const transporterTxs = allExtrinsics
           .filter(tx => tx.call_module === 'transporter' && tx.call_module_function === 'transfer')
-          .map(tx => {
-            // Extract args if available
-            let transferAmount = 0;
-            let destination = '';
-            let domainId = '';
-            if (tx.call_args && Array.isArray(tx.call_args)) {
-              const amountArg = tx.call_args.find(arg => arg.name === 'amount');
-              if (amountArg && amountArg.value) {
-                transferAmount = Number(amountArg.value) / 10**12; // Convert from planck to AI3
-              }
-              const accountArg = tx.call_args.find(arg => arg.name === 'account');
-              if (accountArg && accountArg.value) {
-                destination = accountArg.value;
-              }
-              const domainArg = tx.call_args.find(arg => arg.name === 'domainId');
-              if (domainArg && domainArg.value) {
-                domainId = domainArg.value;
-              }
+          .slice(0, 50); // Limit details fetch
+
+        addLog(`Found ${transporterTxs.length} transporter transfers; fetching details...`);
+
+        // Fetch details using Polkadot API
+        for (const tx of transporterTxs) {
+          try {
+            const blockNum = parseInt(tx.block_num);
+            const extrinsicIdx = parseInt(tx.extrinsic_index.split('-')[1]);
+            const blockHash = await apiToUse.rpc.chain.getBlockHash(blockNum);
+            const block = await apiToUse.rpc.chain.getBlock(blockHash);
+            const extrinsic = block.block.extrinsics[extrinsicIdx];
+
+            if (extrinsic && extrinsic.method.section === 'transporter' && extrinsic.method.method === 'transfer') {
+              const args = extrinsic.method.toHuman().args || {};
+              // Handle comma-separated numbers in args.amount
+              const amountStr = (args.amount || '0').toString().replace(/,/g, '');
+              const amountPlanck = BigInt(amountStr);
+              const amount = Number(amountPlanck) / 10**12;
+              const destAccount = args.account || '';
+              const domainId = args.domainId || '';
+
+              // Log detailed information to page via addLog
+              addLog(`Transporter Tx ${tx.extrinsic_hash}: ${amount} AI3 to ${destAccount} (Domain: ${domainId})`);
+
+              consensusTxs.push({
+                type: 'consensus',
+                blockNumber: blockNum,
+                extrinsicIndex: tx.extrinsic_index,
+                hash: tx.extrinsic_hash,
+                method: `${tx.call_module}.${tx.call_module_function}`,
+                amount: amount,
+                destination: destAccount,
+                domainId: domainId,
+                direction: destAccount.startsWith('0x') ? 'consensusToEVM' : 'consensusToConsensus',
+                tip: tx.tip || '0',
+                nonce: tx.nonce,
+                success: tx.success,
+                fee: (Number(tx.fee || 0) / 10**12).toFixed(6),
+                timestamp: new Date(tx.block_timestamp * 1000).toISOString(),
+                finalized: tx.finalized,
+              });
             }
+          } catch (detailError) {
+            addLog(`Error fetching details for tx ${tx.extrinsic_hash}: ${detailError.message}`);
+          }
+        }
 
-            return {
-              type: 'consensus',
-              blockNumber: parseInt(tx.block_num),
-              extrinsicIndex: tx.extrinsic_index,
-              hash: tx.extrinsic_hash,
-              method: `${tx.call_module}.${tx.call_module_function}`,
-              amount: transferAmount,
-              destination: destination,
-              domainId: domainId,
-              direction: destination.startsWith('0x') ? 'consensusToEVM' : 'unknown',
-              tip: tx.tip || '0',
-              nonce: tx.nonce,
-              success: tx.success,
-              fee: (Number(tx.fee || 0) / 10**12).toFixed(6), // In AI3
-              timestamp: new Date(tx.block_timestamp * 1000).toISOString(),
-              finalized: tx.finalized,
-            };
-          })
-          .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)); // Newest first by time
-
-        addLog(`Fetched ${consensusTxs.length} Consensus transporter transfers via Subscan V2`);
+        consensusTxs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        addLog(`Processed ${consensusTxs.length} Consensus transporter transfers`);
       } catch (error) {
-        addLog(`Error fetching Consensus transactions via Subscan V2: ${error.message}`);
-        // Fallback: Use block-scanning method for small ranges
-        consensusTxs = []; // Or implement fallback here
+        addLog(`Error fetching Consensus extrinsics via Subscan V2: ${error.message}`);
+        // Fallback to block scanning for recent transfers
+        await fallbackFetchConsensusTransfers(apiToUse);
       }
     }
 
-    // EVM transactions (increased scan range for better coverage)
+    // Fallback function for Consensus transfers if Subscan fails
+    const fallbackFetchConsensusTransfers = async (api) => {
+      try {
+        addLog('Fallback: Scanning recent blocks for transporter transfers...');
+        const numBlocks = 1000; // Scan more blocks
+        const header = await api.rpc.chain.getHeader();
+        const latestBlock = header.number.toNumber();
+        const startBlock = Math.max(0, latestBlock - numBlocks);
+        let count = 0;
+
+        for (let bn = latestBlock; bn >= startBlock && count < 50; bn--) {
+          const hash = await api.rpc.chain.getBlockHash(bn);
+          if (!hash) continue;
+          const block = await api.rpc.chain.getBlock(hash);
+          block.block.extrinsics.forEach((extrinsic, index) => {
+            if (extrinsic.isSigned && extrinsic.signer.toString() === consensusAddress.value &&
+                extrinsic.method.section === 'transporter' && extrinsic.method.method === 'transfer') {
+              const args = extrinsic.method.toHuman().args || {};
+              // Handle comma-separated numbers in args.amount
+              const amountStr = (args.amount || '0').toString().replace(/,/g, '');
+              const amountPlanck = BigInt(amountStr);
+              const amount = Number(amountPlanck) / 10**12;
+              const destAccount = args.account || '';
+              const domainId = args.domainId || '';
+
+              // Log detailed information to page via addLog
+              addLog(`Fallback Transporter Tx ${extrinsic.hash.toHex()}: ${amount} AI3 to ${destAccount} (Domain: ${domainId})`);
+
+              consensusTxs.push({
+                type: 'consensus',
+                blockNumber: bn,
+                extrinsicIndex: `${bn}-${index}`,
+                hash: extrinsic.hash.toHex(),
+                method: 'transporter.transfer',
+                amount: amount,
+                destination: destAccount,
+                domainId: domainId,
+                direction: destAccount.startsWith('0x') ? 'consensusToEVM' : 'consensusToConsensus',
+                tip: extrinsic.tip?.toHuman() || '0',
+                nonce: extrinsic.nonce.toHuman(),
+                success: true, // Assume for fallback
+                fee: '0.000000', // Not fetched
+                timestamp: new Date().toISOString(), // Approximate
+                finalized: true,
+              });
+              count++;
+            }
+          });
+        }
+        consensusTxs.sort((a, b) => b.blockNumber - a.blockNumber);
+        addLog(`Fallback fetched ${consensusTxs.length} Consensus transporter transfers`);
+      } catch (fallbackError) {
+        addLog(`Fallback fetch error: ${fallbackError.message}`);
+      }
+    };
+
+    // EVM transactions
     let evmTxs = [];
     if (metamaskProvider.value && evmAddress.value) {
       try {
         addLog('Fetching recent EVM transactions...');
-        const numBlocks = 500; // Increased for more coverage
+        const numBlocks = 1000; // Increased
         const blockNumber = await metamaskProvider.value.getBlockNumber();
         addLog(`Current EVM block number: ${blockNumber}`);
         const startBlock = Math.max(0, blockNumber - numBlocks);
         addLog(`Scanning EVM blocks ${startBlock} to ${blockNumber}`);
-        for (let i = blockNumber; i >= startBlock; i--) {
+        let evmCount = 0;
+        for (let i = blockNumber; i >= startBlock && evmCount < 50; i--) {
           try {
-            const block = await metamaskProvider.value.getBlock(i, true); // With transactions
+            const block = await metamaskProvider.value.getBlock(i, true);
             if (block?.transactions) {
               for (const tx of block.transactions) {
                 const from = tx.from?.toLowerCase();
                 const to = tx.to?.toLowerCase();
                 const addr = evmAddress.value.toLowerCase();
-                if (from === addr || to === addr) {
+                if ((from === addr || to === addr) && evmCount < 50) {
                   evmTxs.push({
                     type: 'evm',
                     blockNumber: i,
                     hash: tx.hash,
                     from: tx.from,
                     to: tx.to || null,
-                    value: ethers.formatEther(tx.value),
+                    value: parseFloat(ethers.formatEther(tx.value)),
                     gas: tx.gasLimit.toString(),
                     nonce: tx.nonce,
                     timestamp: block.timestamp ? new Date(block.timestamp * 1000).toISOString() : new Date().toISOString(),
-                    direction: from === addr ? 'evmToConsensus' : 'consensusToEVM', // Approximate
+                    direction: from === addr ? 'EVM Out' : 'EVM In',
                   });
-                  addLog(`Found EVM tx: ${tx.hash} from/to ${from}/${to} value ${ethers.formatEther(tx.value)}`);
+                  evmCount++;
+                  addLog(`Found EVM tx: ${tx.hash} value ${ethers.formatEther(tx.value)} AI3`);
                 }
               }
             }
           } catch (blockError) {
-            // Skip if block fetch fails (e.g., old blocks)
-            if (i % 100 === 0) addLog(`Skipped EVM block ${i} due to error: ${blockError.message}`);
+            if (i % 100 === 0) addLog(`Skipped EVM block ${i}: ${blockError.message}`);
           }
         }
         addLog(`Fetched ${evmTxs.length} recent EVM transactions`);
@@ -343,12 +416,10 @@ export const useTransferStore = defineStore('transfer', () => {
         const targetChainIdHex = `0x${EVM_CHAIN_ID.toString(16)}`;
         if (currentChainId !== EVM_CHAIN_ID) {
           try {
-            // Try to switch
             await rawProvider.send('wallet_switchEthereumChain', [{ chainId: targetChainIdHex }]);
             addLog('Switched to Autonomys network');
           } catch (switchError) {
             if (switchError.code === 4902) {
-              // Chain not added, add it
               try {
                 await rawProvider.send('wallet_addEthereumChain', [{
                   chainId: targetChainIdHex,
@@ -369,7 +440,6 @@ export const useTransferStore = defineStore('transfer', () => {
           }
         }
 
-        // Request accounts
         await rawProvider.send('eth_requestAccounts', []);
         const signer = await rawProvider.getSigner();
         metamaskAddress.value = await signer.getAddress();
