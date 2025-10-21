@@ -1,18 +1,19 @@
-<!-- src/components/TransactionHistoryPanel.vue -->
+<!-- src/components/TransactionHistoryPanel.vue (Updated) -->
 <template>
   <div class="panel">
     <h2>Transaction History</h2>
     <button @click="refreshHistory" class="refresh-btn">Refresh</button>
     <div v-if="isLoading">Loading transactions...</div>
-    <div v-else-if="store.fetchedTransactions.length === 0">No transactions yet.</div>
+    <div v-else-if="!allFetchedTransactions || allFetchedTransactions.length === 0">No transactions yet.</div>
     <div v-else>
-      <div v-for="(tx, index) in store.fetchedTransactions" :key="index" class="tx-item">
-        <p v-if="tx.id">ID: {{ tx.id }}</p>
-        <p v-if="tx.amount">Amount: {{ tx.amount }}</p>
-        <p v-if="tx.to">To: {{ tx.to }}</p>
-        <p v-if="tx.status">Status: {{ tx.status }}</p>
+      <div v-for="(tx, index) in allFetchedTransactions" :key="tx.hash || index" class="tx-item">
+        <p v-if="tx.hash">Hash: {{ tx.hash.substring(0, 10) }}...</p>
+        <p v-if="tx.amount">Amount: {{ tx.amount }} AI3</p>
+        <p v-if="tx.destination || tx.to">To: {{ tx.destination || tx.to }}</p>
+        <p v-if="tx.success !== undefined">Status: {{ tx.success ? 'Success' : 'Failed' }}</p>
         <p v-if="tx.blockNumber">Block: {{ tx.blockNumber }}</p>
-        <p>Index: {{ index }}</p>
+        <p v-if="tx.timestamp">Time: {{ new Date(tx.timestamp).toLocaleString() }}</p>
+        <p v-if="tx.direction">Direction: {{ tx.direction }}</p>
       </div>
     </div>
   </div>
@@ -20,15 +21,17 @@
 
 <script setup>
 import { useTransferStore } from '@/stores/transferStore';
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 
 const store = useTransferStore();
 const isLoading = ref(false);
 
+const allFetchedTransactions = computed(() => store.allFetchedTransactions || []);
+
 const refreshHistory = async () => {
   isLoading.value = true;
   try {
-    await store.fetchChainTransfers();
+    await store.fetchTransactions();
   } finally {
     isLoading.value = false;
   }
