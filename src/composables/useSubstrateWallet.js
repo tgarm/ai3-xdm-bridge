@@ -1,6 +1,6 @@
 import { ref, markRaw } from 'vue';
 import { web3Accounts, web3Enable, web3FromAddress } from '@polkadot/extension-dapp';
-import { ApiPromise, WsProvider } from '@polkadot/api';
+import { ApiPromise, WsProvider } from '@polkadot/api';  // Back to direct for control
 import { decodeAddress, encodeAddress } from '@polkadot/util-crypto';
 import { CONSENSUS_RPC, AUTONOMYS_PREFIX, DECIMALS, LOCAL_STORAGE_KEY_CONSENSUS, SUBSCAN_BASE } from '@/constants';
 
@@ -14,6 +14,19 @@ export function useSubstrateWallet(addLog) {
   const consensusAddress = ref('');
   const fetchedTransactions = ref([]); // Consensus transporter transfers
 
+   // Cleanup function (call on unmount)
+  const disconnectApis = async () => {
+    if (consensusApi.value) {
+      await consensusApi.value.disconnect();
+      consensusApi.value = null;
+    }
+    if (readOnlyConsensusApi.value) {
+      await readOnlyConsensusApi.value.disconnect();
+      readOnlyConsensusApi.value = null;
+    }
+    addLog('APIs disconnected');
+  };
+
   // Initialize from localStorage
   const initFromStorage = () => {
     const storedConsensus = localStorage.getItem(LOCAL_STORAGE_KEY_CONSENSUS);
@@ -25,17 +38,43 @@ export function useSubstrateWallet(addLog) {
 
   initFromStorage();
 
-  // Create read-only API if address set (now includes initial fetches after ready)
+  // Helper: Create API instance (shared for read-only/signed)
+  const createApiInstance = async (isSigned = false) => {
+    try {
+      const provider = new WsProvider(CONSENSUS_RPC);  // Mainnet RPC
+      const apiInstance = await ApiPromise.create({
+        provider,
+        types: customTypes  // Inject custom types upfront
+      });
+      await apiInstance.isReady;
+
+/*      
+      // Refresh metadata to ensure runtime types (Domains pallet)
+      const metadata = await apiInstance.rpc.state.getMetadata();
+      apiInstance.registry.setMetadata(metadata);
+
+      // Verify key type
+      if (apiInstance.registry.get('SpDomainsChainId')) {
+        addLog(`${isSigned ? 'Signed' : 'Read-only'} Consensus API: SpDomainsChainId registered via custom types`);
+      } else {
+        addLog(`Warning: SpDomainsChainId not fully resolved`);
+      }
+*/
+      return markRaw(apiInstance);
+    } catch (error) {
+      addLog(`Error creating API instance: ${error.message}`);
+      throw error;
+    }
+  };
+
+  // Create read-only API if address set
   const initReadOnlyApi = async () => {
     if (consensusAddress.value && !readOnlyConsensusApi.value) {
       try {
-        const provider = new WsProvider(CONSENSUS_RPC);
-        const apiInstance = await ApiPromise.create({ provider });
-        readOnlyConsensusApi.value = markRaw(apiInstance);
-        await readOnlyConsensusApi.value.isReady;
-        addLog('Read-only Consensus API initialized');
+        readOnlyConsensusApi.value = await createApiInstance(false);
+        addLog('Read-only Consensus API initialized with custom types (Mainnet)');
 
-        // Initial fetches after API is ready (fixes race condition)
+        // Initial fetches after API is ready
         await updateBalance();
         await fetchTransactions();
       } catch (error) {
@@ -44,7 +83,7 @@ export function useSubstrateWallet(addLog) {
     }
   };
 
-  // Update balance
+  // Update balance (unchanged)
   const updateBalance = async () => {
     const apiToUse = readOnlyConsensusApi.value || consensusApi.value;
     if (apiToUse && consensusAddress.value) {
@@ -61,7 +100,7 @@ export function useSubstrateWallet(addLog) {
     }
   };
 
-  // Fetch transactions (transporter transfers)
+  // Fetch transactions (unchanged)
   const fetchTransactions = async () => {
     const apiToUse = readOnlyConsensusApi.value || consensusApi.value;
     if (!apiToUse || !consensusAddress.value) return;
@@ -90,7 +129,7 @@ export function useSubstrateWallet(addLog) {
         }
 
         const data = await response.json();
-        console.log('Subscan Extrinsics Response (page ' + page + '):', JSON.stringify(data, null, 2));
+        //console.log('Subscan Extrinsics Response (page ' + page + '):', JSON.stringify(data, null, 2));
         addLog(`Subscan extrinsics page ${page} fetched: ${data.data?.extrinsics?.length || 0} items`);
 
         if (data.code !== 0) {
@@ -162,11 +201,10 @@ export function useSubstrateWallet(addLog) {
       addLog(`Processed ${fetchedTransactions.value.length} Consensus transporter transfers`);
     } catch (error) {
       addLog(`Error fetching Consensus extrinsics via Subscan V2: ${error.message}`);
-      // Fallback implementation here if needed
     }
   };
 
-  // Connect Consensus wallet
+  // Connect Consensus wallet (creates signed API with types)
   const connect = async () => {
     try {
       addLog('Attempting to connect Consensus wallet...');
@@ -183,17 +221,18 @@ export function useSubstrateWallet(addLog) {
       consensusAddress.value = encodeAddress(publicKey, AUTONOMYS_PREFIX);
       localStorage.setItem(LOCAL_STORAGE_KEY_CONSENSUS, consensusAddress.value);
       addLog(`Consensus address set: ${consensusAddress.value}`);
-      
-      const provider = new WsProvider(CONSENSUS_RPC);
-      const apiInstance = await ApiPromise.create({ provider });
-      consensusApi.value = markRaw(apiInstance);
+            
+      // Create signed API with custom types (Mainnet)
+      consensusApi.value = await createApiInstance(true);
       await consensusApi.value.isReady;
+      // Attach extension signer
       const injector = await web3FromAddress(consensusAccount.value.address);
       if (!injector) {
         throw new Error('No injector found for address');
       }
       consensusApi.value.setSigner(injector.signer);
-      addLog('Consensus API ready and signer set');
+      
+      addLog('Consensus signed API ready with custom types (Mainnet)');
       await updateBalance();
       await fetchTransactions();
       addLog('Consensus connection successful');
@@ -218,5 +257,6 @@ export function useSubstrateWallet(addLog) {
     updateBalance,
     fetchTransactions,
     initReadOnlyApi,
+    disconnectApis,
   };
 }

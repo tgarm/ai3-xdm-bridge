@@ -1,23 +1,26 @@
 // src/stores/transferStore.js
 import { defineStore } from 'pinia';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';  // Added ref for pollInterval
 import { transferToDomainAccount20Type } from '@autonomys/auto-xdm';
-import { MIN_TRANSFER_AMOUNT, DOMAIN_ID, EVM_WS_RPC, DECIMALS } from '@/constants';  // Ensure DECIMALS is imported
+import { MIN_TRANSFER_AMOUNT, DOMAIN_ID, EVM_WS_RPC, DECIMALS } from '@/constants';
 import { useTransferUi } from '@/composables/useTransferUi';
 import { useSubstrateWallet } from '@/composables/useSubstrateWallet';
 import { useEvmWallet } from '@/composables/useEvmWallet';
 
 export const useTransferStore = defineStore('transfer', () => {
+  // Poll interval ref (for transfer completion)
+  const pollInterval = ref(null);
+
   // Compose UI (exclude setAmount to avoid conflict)
   const { logs, amount, direction, isTransferring, transactions, addLog } = useTransferUi();
 
-  // Compose Substrate (primary for now)
+  // Compose Substrate (primary)
   const substrate = useSubstrateWallet(addLog);
 
-  // Compose EVM (retained but simplified)
+  // Compose EVM (restored)
   const evm = useEvmWallet(addLog);
 
-  // Computed (cross-wallet, but simplified to Substrate focus)
+  // Computed (cross-wallet)
   const consensusConnected = computed(() => !!substrate.consensusAccount);
   const evmConnected = computed(() => !!evm.metamaskAddress);
   const sourceBalance = computed(() => {
@@ -34,16 +37,14 @@ export const useTransferStore = defineStore('transfer', () => {
     }
   });
 
-  // Update balances (Substrate only for now)
+  // Update balances (both wallets restored)
   const updateBalances = async () => {
-    await substrate.updateBalance();
-    // await evm.updateBalance();  // Re-enable when EVM fetches are fixed
+    await Promise.all([substrate.updateBalance(), evm.updateBalance()]);
   };
 
-  // Fetch transactions (Substrate only for now)
+  // Fetch transactions (unified, both restored)
   const fetchTransactions = async () => {
-    await substrate.fetchTransactions();
-    // await evm.fetchTransactions();  // Re-enable when ready
+    await Promise.all([substrate.fetchTransactions(), evm.fetchTransactions()]);
   };
 
   // Connect Consensus
@@ -63,7 +64,48 @@ export const useTransferStore = defineStore('transfer', () => {
     }
   };
 
-  // Perform transfer (orchestrates both)
+  // Helper: Start polling for EVM bridge completion (for consensusToEVM)
+  const startBridgePolling = (pendingTx) => {
+    if (pollInterval.value) clearInterval(pollInterval.value);  // Clear any existing
+    const startTime = Date.now();
+    const pollDurationMs = 15 * 60 * 1000;  // 15 min max
+
+    pollInterval.value = setInterval(async () => {
+      if (Date.now() - startTime > pollDurationMs) {
+        clearInterval(pollInterval.value);
+        pollInterval.value = null;
+        pendingTx.status = 'timed out';
+        addLog('Bridge poll timed out after 15 min');
+        return;
+      }
+
+      await fetchTransactions();
+
+      // Scan EVM txs for match: amount (tolerance), to=evmAddress, recent, success
+      const evmAddress = evm.metamaskAddress?.toLowerCase();
+      if (!evmAddress) return;
+
+      const matchingEvmTx = evm.fetchedTransactions.value.find(tx => 
+        tx.type === 'evm' &&
+        tx.success &&
+        Math.abs(tx.amount - pendingTx.amount) < 0.01 &&  // Tolerance for dust/rounding
+        (tx.to || '').toLowerCase() === evmAddress &&
+        new Date(tx.timestamp) > new Date(pendingTx.timestamp)  // After initiation
+      );
+
+      if (matchingEvmTx) {
+        pendingTx.status = 'success';
+        pendingTx.evmTxHash = matchingEvmTx.hash;  // Optional: Link to EVM tx
+        clearInterval(pollInterval.value);
+        pollInterval.value = null;
+        addLog(`Bridge transfer confirmed on EVM! Tx: ${matchingEvmTx.hash}`);
+        updateBalances();
+        alert('Transfer completed on EVM side!');
+      }
+    }, 6000);  // Poll every 6s (block time)
+  };
+
+  // Perform transfer (orchestrates both, with polling)
   const performTransfer = async () => {
     if (!amount.value || amount.value < MIN_TRANSFER_AMOUNT) {
       addLog('Amount below minimum transfer amount');
@@ -73,6 +115,7 @@ export const useTransferStore = defineStore('transfer', () => {
     const amountWei = BigInt(Math.floor(amount.value * Number(10n ** DECIMALS)));
     const estimatedTime = direction.value === 'consensusToEVM' ? '~10 min' : '~1 day';
     const newTx = {
+      id: Date.now(),  // Simple ID for tracking
       direction: direction.value,
       amount: amount.value,
       status: 'pending',
@@ -102,17 +145,19 @@ export const useTransferStore = defineStore('transfer', () => {
             addLog('Transaction in block');
           }
           if (status.isFinalized) {
-            newTx.status = 'completed';
-            addLog('Transaction finalized');
+            newTx.status = 'completed';  // Substrate done; now poll EVM
+            addLog('Substrate transaction finalized - polling EVM for bridge...');
             isTransferring.value = false;
-            updateBalances();
-            fetchTransactions();
-            alert('Transfer to Auto-EVM finalized!');
+            startBridgePolling(newTx);  // Start 6s polling
           }
           if (status.isRetracted) {
             newTx.status = 'retracted';
             addLog('Transaction retracted');
             isTransferring.value = false;
+            if (pollInterval.value) {
+              clearInterval(pollInterval.value);
+              pollInterval.value = null;
+            }
           }
           if (status.isFinalityTimeout) {
             newTx.status = 'finality timeout';
@@ -129,23 +174,43 @@ export const useTransferStore = defineStore('transfer', () => {
     } catch (error) {
       newTx.status = 'failed';
       isTransferring.value = false;
+      if (pollInterval.value) {
+        clearInterval(pollInterval.value);
+        pollInterval.value = null;
+      }
       addLog(`Transfer failed: ${error.message}`);
       console.error('Transfer failed:', error);
       alert('Transfer failed: ' + error.message);
     }
   };
 
-  // Expose unified transactions (Substrate only for now)
-  const allFetchedTransactions = computed(() => 
-    [...substrate.fetchedTransactions.value]  // .value fixes iterable error; EVM omitted for simplicity
-      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-  );
+  // Expose unified transactions (both wallets)
+  const allFetchedTransactions = computed(() => [
+    ...substrate.fetchedTransactions.value,
+    ...evm.fetchedTransactions.value  // Restored
+  ].sort((a, b) => new Date(b.timestamp || b.blockNumber) - new Date(a.timestamp || a.blockNumber)));
 
-  // Init APIs (fetches now handled inside composables after ready)
+  // Init APIs & initial fetches if addresses loaded
   substrate.initReadOnlyApi();
   evm.initProvider();
 
-  // No initial if-check for fetches here—handled in composables
+  // Initial fetches after inits (for loaded addresses)
+  const initIfLoaded = async () => {
+    if (substrate.consensusAddress || evm.metamaskAddress) {
+      await updateBalances();
+      await fetchTransactions();
+    }
+  };
+  initIfLoaded();
+
+  // Cleanup on store destroy (optional, for dev)
+  // You can call this in a global onUnmounted if needed
+  const stopPolling = () => {
+    if (pollInterval.value) {
+      clearInterval(pollInterval.value);
+      pollInterval.value = null;
+    }
+  };
 
   return {
     // UI State/Actions
@@ -168,10 +233,15 @@ export const useTransferStore = defineStore('transfer', () => {
     connectConsensus,
     connectEVM,
     performTransfer,
+    stopPolling,  // Expose for cleanup if needed
     minTransferAmount: MIN_TRANSFER_AMOUNT,
+    // Wallet States (exposed for panels)
     consensusAddress: substrate.consensusAddress,
-    evmAddress: evm.evmAddress,
     consensusBalance: substrate.consensusBalance,
+    consensusBalanceLoading: substrate.consensusBalanceLoading,
+    evmAddress: evm.metamaskAddress,  // e.g., for EVM panel
     evmBalance: evm.evmBalance,
+    evmBalanceLoading: evm.evmBalanceLoading,  // Assume this exists in useEvmWallet
+    disconnectApis: substrate.disconnectApis
   };
 });

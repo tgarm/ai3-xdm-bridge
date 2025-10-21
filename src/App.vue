@@ -23,12 +23,17 @@
 </template>
 
 <script setup>
+import { onUnmounted } from 'vue';
 import SubstrateWalletPanel from './components/SubstrateWalletPanel.vue';
 import EVMWalletPanel from './components/EVMWalletPanel.vue';
 import TokenTransferPanel from './components/TokenTransferPanel.vue';
 import LoggingPanel from './components/LoggingPanel.vue';
 import TransactionHistoryPanel from './components/TransactionHistoryPanel.vue';
 import DocumentPanel from './components/DocumentPanel.vue';
+
+onUnmounted(() => {
+  store.disconnectApis?.();
+});
 </script>
 
 <style>
