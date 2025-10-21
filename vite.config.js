@@ -1,9 +1,10 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
+import { nodePolyfills } from 'vite-plugin-node-polyfills';
 import { resolve } from 'path'
 
 export default defineConfig({
-  plugins: [vue()],
+  plugins: [vue(), nodePolyfills({ buffer: true, global: true, crypto: true })],  
   resolve: {
     alias: {
       "@": resolve(__dirname, "./src")
