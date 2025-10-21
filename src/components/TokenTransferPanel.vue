@@ -1,13 +1,9 @@
 <!-- src/components/TokenTransferPanel.vue -->
 <template>
   <div class="panel">
-    <h2>Bridging Operation</h2>
-    <select v-model="store.direction">
-      <option value="consensusToEVM">Consensus → Auto-EVM</option>
-      <option value="evmToConsensus">Auto-EVM → Consensus</option>
-    </select>
+    <h2>Consensus → Auto-EVM</h2>
     <div class="amount-section">
-      <input v-model.number="store.amount" type="number" step="0.000000000000000001" placeholder="Amount in AI3" min="5">
+      <input v-model.number="store.amount" type="number" step="0.000000000000000001" placeholder="Amount in AI3" :min="store.minTransferAmount">
       <div class="percent-buttons">
         <button @click="store.setAmount(0)">0%</button>
         <button @click="store.setAmount(25)">25%</button>
@@ -15,10 +11,7 @@
         <button @click="store.setAmount(75)">75%</button>
         <button @click="store.setAmount(100)">100%</button>
       </div>
-      <p class="min-note">Minimum transfer: 5 AI3</p>
-    </div>
-    <div v-if="store.direction === 'evmToConsensus'" class="warning">
-      Note: Requires manual Substrate signing on Polkadot.js Apps.
+      <p class="min-note">Minimum transfer: {{ store.minTransferAmount }} AI3</p>
     </div>
     <button @click="store.performTransfer" :disabled="!store.canTransfer">
       {{ store.isTransferring ? 'Transferring...' : 'Transfer AI3' }}
@@ -39,7 +32,7 @@ const store = useTransferStore();
   padding: 20px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
 }
-select, input[type="number"] {
+input[type="number"] {
   padding: 10px;
   margin: 5px 0;
   border: 1px solid #ddd;
@@ -97,13 +90,5 @@ button:hover:not(:disabled) {
 button:disabled {
   background-color: #bdc3c7;
   cursor: not-allowed;
-}
-.warning {
-  color: #e74c3c;
-  font-style: italic;
-  background: #fdf2f2;
-  padding: 10px;
-  border-radius: 4px;
-  margin: 10px 0;
 }
 </style>
