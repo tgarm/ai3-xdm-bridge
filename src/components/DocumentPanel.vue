@@ -7,23 +7,14 @@
       <p>Handled automatically via the app. Wait ~10 min for funds to appear.</p>
       
       <h3>EVM → Consensus Transfers</h3>
-      <p>These require manual Substrate signing on Auto-EVM:</p>
-      <ol>
-        <li>Go to <a href="https://polkadot.js.org/apps/?rpc=wss://auto-evm.mainnet.autonomys.xyz/ws#/extrinsics" target="_blank">Polkadot.js Apps</a></li>
-        <li>Select your EVM-derived account (import 0x private key as "substrate" type if needed).</li>
-        <li>Choose <code>transporter.transfer()</code></li>
-        <li>Set <code>dstLocation.chainId = Consensus</code></li>
-        <li>Enter consensus address (e.g., {{ store.consensusAddress || 'your connected one' }})</li>
-        <li>Amount: in Shannons (e.g., for 1 AI3: 1000000000000000000)</li>
-        <li>Submit & wait ~1 day.</li>
-      </ol>
-      <p>Or use SubWallet connected to Auto-EVM.</p>
+      <p>E2C transfers are not yet supported in the app (coming soon). For now, use Polkadot.js Apps following this guide: <a href="https://docs.autonomys.xyz/farming/guides/xdm/#auto-evm-domain-to-consensus-with-polkadotjs" target="_blank">Auto-EVM to Consensus Guide</a>.</p>
       
       <h3>Setup Notes</h3>
       <ul>
         <li>Consensus: Use SubWallet/Talisman with Autonomys Consensus (RPC: wss://rpc.mainnet.autonomys.xyz/ws, SS58 6094).</li>
         <li>EVM: Add Auto-EVM to MetaMask (ID 870 via <a href="https://chainlist.org/chain/870" target="_blank">Chainlist</a>).</li>
         <li>Minimum transfer: 5 AI3.</li>
+        <li>This app is built using the <a href="https://docs.autonomys.xyz/farming/guides/xdm/" target="_blank">XDM Guide</a> and <a href="https://docs.autonomys.xyz/developers/auto-sdk/" target="_blank">Auto-SDK</a>.</li>
       </ul>
     </div>
   </div>
