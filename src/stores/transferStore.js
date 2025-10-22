@@ -1,7 +1,7 @@
-// src/stores/transferStore.js
+// src/stores/transferStore.js (Updated)
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';  // Added ref for pollInterval
-import { MIN_TRANSFER_AMOUNT, DOMAIN_ID, EVM_WS_RPC, DECIMALS } from '@/constants';
+import { MIN_TRANSFER_AMOUNT, EVM_WS_RPC, DECIMALS } from '@/constants';
 import { useTransferUi } from '@/composables/useTransferUi';
 import { useSubstrateWallet } from '@/composables/useSubstrateWallet';
 import { useEvmWallet } from '@/composables/useEvmWallet';
@@ -51,7 +51,7 @@ export const useTransferStore = defineStore('transfer', () => {
 
   // Fetch transactions (unified, both restored)
   const fetchTransactions = async () => {
-    await Promise.all([substrate.fetchTransactions(), evm.fetchTransactions()]);
+    await substrate.fetchTransactions();
   };
 
   // Connect Consensus
@@ -71,62 +71,33 @@ export const useTransferStore = defineStore('transfer', () => {
     }
   };
 
-  // Helper: Start polling for EVM bridge completion (for consensusToEVM)
-  const startBridgePolling = (pendingTx) => {
-    if (pollInterval.value) clearInterval(pollInterval.value);  // Clear any existing
-    const startTime = Date.now();
-    const pollDurationMs = 15 * 60 * 1000;  // 15 min max
-
-    pollInterval.value = setInterval(async () => {
-      if (Date.now() - startTime > pollDurationMs) {
-        clearInterval(pollInterval.value);
-        pollInterval.value = null;
-        pendingTx.status = 'timed out';
-        addLog('Bridge poll timed out after 15 min');
-        return;
-      }
-
-      await fetchTransactions();
-
-      // Scan EVM txs for match: amount (tolerance), to=evmAddress, recent, success
-      const evmAddress = evm.evmAddress.value?.toLowerCase();
-      if (!evmAddress) return;
-
-      const matchingEvmTx = evm.fetchedTransactions.value.find(tx => 
-        tx.type === 'evm' &&
-        tx.success &&
-        Math.abs(tx.amount - pendingTx.amount) < 0.01 &&  // Tolerance for dust/rounding
-        (tx.to || '').toLowerCase() === evmAddress &&
-        new Date(tx.timestamp) > new Date(pendingTx.timestamp)  // After initiation
-      );
-
-      if (matchingEvmTx) {
-        pendingTx.status = 'success';
-        pendingTx.evmTxHash = matchingEvmTx.hash;  // Optional: Link to EVM tx
-        clearInterval(pollInterval.value);
-        pollInterval.value = null;
-        addLog(`Bridge transfer confirmed on EVM! Tx: ${matchingEvmTx.hash}`);
-        updateBalances();
-        alert('Transfer completed on EVM side!');
-      }
-    }, 6000);  // Poll every 6s (block time)
-  };
-
-  // Status update callback for transfer
+  // Status update callback for transfer (updated to start EVM polling on C2E finalization)
   const handleTransferStatus = ({ status }) => {
     if (status.isInBlock) {
       addLog('Transaction in block');
     }
     if (status.isFinalized) {
-      addLog('Substrate transaction finalized - polling EVM for bridge...');
+      addLog('Substrate transaction finalized, reload transactions');
       if (direction.value === 'consensusToEVM') {
-        // Find the most recent pending transfer
-        const pendingTxs = transactions.value.filter(tx => tx.status === 'pending' || tx.status === 'in block');
-        if (pendingTxs.length > 0) {
-          const pendingTx = pendingTxs[pendingTxs.length - 1];  // last one
-          pendingTx.status = 'completed';  // substrate done
-          startBridgePolling(pendingTx);
+        fetchTransactions();
+        // Start polling EVM balance for ~10 min
+        if (pollInterval.value) {
+          clearInterval(pollInterval.value);
+          pollInterval.value = null;
         }
+        let pollCount = 0;
+        const maxPolls = 20; // ~10 min at 30s intervals
+        pollInterval.value = setInterval(async () => {
+          await evm.updateBalance();
+          addLog('Polling EVM balance for arrival...');
+          pollCount++;
+          if (pollCount >= maxPolls) {
+            clearInterval(pollInterval.value);
+            pollInterval.value = null;
+            addLog('EVM polling completed (timeout)');
+          }
+        }, 30000);
+        addLog('Started EVM balance polling for C2E arrival');
       }
       isTransferring.value = false;
     }
@@ -141,10 +112,14 @@ export const useTransferStore = defineStore('transfer', () => {
     if (status.isFinalityTimeout) {
       addLog('Transaction finality timeout - may finalize later');
       isTransferring.value = false;
+      if (pollInterval.value) {
+        clearInterval(pollInterval.value);
+        pollInterval.value = null;
+      }
     }
   };
 
-  // Perform transfer (orchestrates both, with polling) - substrate logic delegated
+  // Perform transfer (orchestrates both, with polling) - substrate logic delegated (updated to set expectedArrival)
   const performTransfer = async () => {
     if (!amount.value || amount.value < MIN_TRANSFER_AMOUNT) {
       addLog('Amount below minimum transfer amount');
@@ -152,6 +127,8 @@ export const useTransferStore = defineStore('transfer', () => {
       return;
     }
     const amountWei = BigInt(Math.floor(amount.value * Number(10n ** DECIMALS)));
+    const transferTime = new Date();
+    const estimatedTimeMs = direction.value === 'consensusToEVM' ? 10 * 60 * 1000 : 24 * 60 * 60 * 1000;
     const estimatedTime = direction.value === 'consensusToEVM' ? '~10 min' : '~1 day';
     const newTx = {
       id: Date.now(),  // Simple ID for tracking
@@ -159,7 +136,8 @@ export const useTransferStore = defineStore('transfer', () => {
       amount: amount.value,
       status: 'pending',
       estimatedTime,
-      timestamp: new Date()
+      expectedArrival: new Date(transferTime.getTime() + estimatedTimeMs).toISOString(),
+      timestamp: transferTime
     };
     transactions.value.push(newTx);
     addLog(`Initiating transfer: ${direction.value} ${amount.value} AI3`);
@@ -210,7 +188,6 @@ export const useTransferStore = defineStore('transfer', () => {
   // Expose unified transactions (both wallets)
   const allFetchedTransactions = computed(() => [
     ...substrate.fetchedTransactions.value,
-    ...evm.fetchedTransactions.value  // Restored
   ].sort((a, b) => new Date(b.timestamp || b.blockNumber) - new Date(a.timestamp || a.blockNumber)));
 
   // Init APIs & initial fetches if addresses loaded

@@ -1,5 +1,5 @@
-// src/composables/useSubstrateWallet.js
-import { ref, markRaw } from 'vue';
+// src/composables/useSubstrateWallet.js (Updated)
+import { ref } from 'vue';
 import { web3Accounts, web3Enable, web3FromAddress } from '@polkadot/extension-dapp';
 import { ApiPromise, WsProvider } from '@polkadot/api';  // Back to direct for control
 import { decodeAddress, encodeAddress } from '@polkadot/util-crypto';
@@ -118,7 +118,7 @@ export function useSubstrateWallet(addLog) {
         }
     };
 
-    // Fetch transactions (unchanged)
+    // Fetch transactions (updated to add expectedArrival for C2E)
     const fetchTransactions = async () => {
         const apiToUse = readOnlyConsensusApi.value || consensusApi.value;
         if (!apiToUse || !consensusAddress.value) return;
@@ -186,8 +186,12 @@ export function useSubstrateWallet(addLog) {
                         const amountStr = (args.amount || '0').toString().replace(/,/g, '');
                         const amountPlanck = BigInt(amountStr);
                         const amount = Number(amountPlanck) / decimals;
-                        const destAccount = args.account || '';
-                        const domainId = args.domainId || '';
+                        const destAccount = args.dst_location.accountId.AccountId20 || '';
+                        const domainId = args.dst_location.chainId.Domain || '';
+
+                        const transferTime = new Date(tx.block_timestamp * 1000);
+                        const expectedArrival = destAccount.startsWith('0x') ? new Date(transferTime.getTime() + 10 * 60 * 1000).toISOString() : null;
+                        const direction = destAccount.startsWith('0x') ? 'consensusToEVM' : 'consensusToConsensus';
 
                         // Log detailed information to page via addLog
                         addLog(`Transporter Tx ${tx.extrinsic_hash}: ${amount} AI3 to ${destAccount} (Domain: ${domainId})`);
@@ -201,12 +205,13 @@ export function useSubstrateWallet(addLog) {
                             amount: amount,
                             destination: destAccount,
                             domainId: domainId,
-                            direction: destAccount.startsWith('0x') ? 'consensusToEVM' : 'consensusToConsensus',
+                            direction: direction,
+                            expectedArrival: expectedArrival,
                             tip: tx.tip || '0',
                             nonce: tx.nonce,
                             success: tx.success,
                             fee: (Number(tx.fee || 0) / decimals).toFixed(6),
-                            timestamp: new Date(tx.block_timestamp * 1000).toISOString(),
+                            timestamp: transferTime.toISOString(),
                             finalized: tx.finalized,
                         });
                     }
@@ -259,10 +264,13 @@ export function useSubstrateWallet(addLog) {
 
                 if (status.isInBlock) {
                     addLog('Transaction in block');
+                    unsubscribe();
+                    fetchTransactions();
                 }
                 if (status.isFinalized) {
                     addLog('Substrate transaction finalized');
                     unsubscribe();
+                    fetchTransactions();
                 }
                 if (status.isRetracted) {
                     addLog('Transaction retracted');
@@ -309,8 +317,8 @@ export function useSubstrateWallet(addLog) {
             consensusApi.value.setSigner(injector.signer);
 
             await updateBalance();
-            await fetchTransactions();
             addLog('Consensus connection successful');
+            fetchTransactions();
         } catch (error) {
             console.error('Consensus connection failed:', error);
             addLog(`Consensus connection failed: ${error.message}`);

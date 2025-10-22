@@ -9,7 +9,6 @@ export function useEvmWallet(addLog) {
   const evmBalance = ref(0);
   const evmBalanceLoading = ref(false);
   const evmAddress = ref('');
-  const fetchedTransactions = ref([]); // EVM transactions
 
   // Create provider if address set
   const initProvider = async () => {
@@ -38,56 +37,6 @@ export function useEvmWallet(addLog) {
       } finally {
         evmBalanceLoading.value = false;
       }
-    }
-  };
-
-  // Fetch transactions
-  const fetchTransactions = async () => {
-    if (!metamaskProvider.value || !evmAddress.value) return;
-
-    try {
-      addLog('Fetching recent EVM transactions...');
-      const numBlocks = 1000;
-      const blockNumber = await metamaskProvider.value.getBlockNumber();
-      addLog(`Current EVM block number: ${blockNumber}`);
-      const startBlock = Math.max(0, blockNumber - numBlocks);
-      addLog(`Scanning EVM blocks ${startBlock} to ${blockNumber}`);
-      let evmCount = 0;
-      for (let i = blockNumber; i >= startBlock && evmCount < 50; i--) {
-        try {
-          const block = await metamaskProvider.value.getBlock(i, true);
-          if (block?.transactions) {
-            for (const tx of block.transactions) {
-              const from = tx.from?.toLowerCase();
-              const to = tx.to?.toLowerCase();
-              const addr = evmAddress.value.toLowerCase();
-              if ((from === addr || to === addr) && evmCount < 50) {
-                fetchedTransactions.value.push({
-                  type: 'evm',
-                  blockNumber: i,
-                  hash: tx.hash,
-                  from: tx.from,
-                  to: tx.to || null,
-                  amount: parseFloat(ethers.formatEther(tx.value)),
-                  gas: tx.gasLimit.toString(),
-                  nonce: tx.nonce,
-                  timestamp: block.timestamp ? new Date(block.timestamp * 1000).toISOString() : new Date().toISOString(),
-                  direction: from === addr ? 'EVM Out' : 'EVM In',
-                  success: true, // Assume success for polling matcher
-                });
-                evmCount++;
-                addLog(`Found EVM tx: ${tx.hash} value ${ethers.formatEther(tx.value)} AI3`);
-              }
-            }
-          }
-        } catch (blockError) {
-          if (i % 100 === 0) addLog(`Skipped EVM block ${i}: ${blockError.message}`);
-        }
-      }
-      fetchedTransactions.value.sort((a, b) => (b.timestamp ? new Date(b.timestamp) : b.blockNumber) - (a.timestamp ? new Date(a.timestamp) : a.blockNumber));
-      addLog(`Fetched ${fetchedTransactions.value.length} recent EVM transactions`);
-    } catch (error) {
-      addLog(`Error fetching EVM transactions: ${error.message}`);
     }
   };
 
@@ -141,8 +90,7 @@ export function useEvmWallet(addLog) {
         evmAddress.value = metamaskAddress.value;
         addLog(`EVM address set: ${evmAddress.value}`);
         await updateBalance();
-        await fetchTransactions();
-        addLog('EVM connection successful');
+        addLog('EVM connection successful'); 
       } catch (error) {
         console.error('MetaMask connection failed:', error);
         addLog(`EVM connection failed: ${error.message}`);
@@ -161,11 +109,9 @@ export function useEvmWallet(addLog) {
     evmBalance,
     evmBalanceLoading,
     evmAddress,
-    fetchedTransactions,
     // Actions
     connect,
     updateBalance,
-    fetchTransactions,
     initProvider,
   };
 }

@@ -14,6 +14,10 @@
         <p v-if="tx.blockNumber">Block: {{ tx.blockNumber }}</p>
         <p v-if="tx.timestamp">Time: {{ new Date(tx.timestamp).toLocaleString() }}</p>
         <p v-if="tx.direction">Direction: {{ tx.direction }}</p>
+        <div v-if="isPendingC2E(tx)" class="countdown-container">
+          <p>Estimated EVM arrival:</p>
+          <span class="countdown">{{ formatRemainingTime(remainingTime(tx)) }}</span>
+        </div>
       </div>
     </div>
   </div>
@@ -21,10 +25,11 @@
 
 <script setup>
 import { useTransferStore } from '@/stores/transferStore';
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 
 const store = useTransferStore();
 const isLoading = ref(false);
+const now = ref(Date.now());
 
 const allFetchedTransactions = computed(() => store.allFetchedTransactions || []);
 
@@ -36,6 +41,30 @@ const refreshHistory = async () => {
     isLoading.value = false;
   }
 };
+
+const isPendingC2E = (tx) => {
+  if (tx.direction !== 'consensusToEVM' || !tx.expectedArrival) return false;
+  return remainingTime(tx) > 0;
+};
+
+const remainingTime = (tx) => {
+  const expected = new Date(tx.expectedArrival).getTime();
+  return expected - now.value;
+};
+
+const formatRemainingTime = (ms) => {
+  if (ms <= 0) return 'Arrived';
+  const minutes = Math.floor(ms / 60000);
+  const seconds = Math.floor((ms % 60000) / 1000);
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+};
+
+onMounted(() => {
+  const interval = setInterval(() => {
+    now.value = Date.now();
+  }, 1000);
+  onUnmounted(() => clearInterval(interval));
+});
 </script>
 
 <style scoped>
@@ -66,5 +95,16 @@ const refreshHistory = async () => {
 }
 .tx-item p {
   margin: 5px 0;
+}
+.countdown-container {
+  margin-top: 5px;
+  padding: 5px;
+  background: #e8f5e8;
+  border-radius: 4px;
+}
+.countdown {
+  font-weight: bold;
+  color: #27ae60;
+  font-size: 1.1em;
 }
 </style>
