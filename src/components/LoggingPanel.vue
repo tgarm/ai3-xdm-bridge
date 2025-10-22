@@ -3,7 +3,7 @@
   <div class="panel">
     <h2>Logs</h2>
     <div class="logs-container">
-      <div v-for="log in store.logs" :key="log.timestamp" class="log-item">
+      <div v-for="log in store.logs" :key="log.id" class="log-item">
         <span class="timestamp">{{ log.timestamp }}</span>
         <span class="message">{{ log.message }}</span>
       </div>
@@ -18,7 +18,7 @@ import { useTransferStore } from '@/stores/transferStore';
 const store = useTransferStore();
 
 const clearLogs = () => {
-  store.logs = [];
+  store.logs.value = [];
 };
 </script>
 

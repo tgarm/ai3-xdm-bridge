@@ -1,14 +1,18 @@
-// src/composables/useTransferUi.js (Updated: Removed setAmount)
+// src/composables/useTransferUi.js (Updated: Added unique ID for logs)
 import { ref } from 'vue';
-import { MIN_TRANSFER_AMOUNT } from '@/constants';
 
 export function useTransferUi() {
   // UI State
   const logs = ref([]);
+  const logId = ref(0);
 
   const addLog = (message) => {
     const timestamp = new Date().toLocaleTimeString();
-    logs.value.push({ timestamp, message });
+    logs.value.push({ 
+      id: logId.value++, 
+      timestamp, 
+      message 
+    });
     console.log(`[${timestamp}] ${message}`);
     if (logs.value.length > 50) { // Keep only last 50 logs
       logs.value.shift();

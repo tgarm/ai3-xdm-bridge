@@ -10,6 +10,15 @@ export const useTransferStore = defineStore('transfer', () => {
   // Poll interval ref (for transfer completion)
   const pollInterval = ref(null);
 
+  // Tx polling interval ref
+  const pollTxInterval = ref(null);
+
+  // Current status for button (new)
+  const currentStatus = ref('');
+
+  // Current pending hash for polling
+  const currentPendingHash = ref(null);
+
   // Compose UI (exclude setAmount to avoid conflict)
   const { logs, amount, direction, isTransferring, transactions, addLog } = useTransferUi();
 
@@ -71,15 +80,81 @@ export const useTransferStore = defineStore('transfer', () => {
     }
   };
 
+  // Polling function for submitted tx after inBlock
+  const startPollingForTx = (expectedHash) => {
+    if (pollTxInterval.value) {
+      clearInterval(pollTxInterval.value);
+      pollTxInterval.value = null;
+    }
+    let pollCount = 0;
+    const maxPolls = 12; // ~2 min at 10s intervals
+    pollTxInterval.value = setInterval(async () => {
+      await fetchTransactions();
+      addLog(`Polling for transaction (${pollCount}/${maxPolls})...expect hash: ${expectedHash}`);
+      const foundTx = substrate.fetchedTransactions.value.find(t => t.hash === expectedHash);
+      if (foundTx) {
+        addLog('Submitted transaction found in history');
+        const pendingTx = transactions.value.find(tx => tx.hash === expectedHash);
+        if (pendingTx) {
+          pendingTx.status = 'submitted';
+          // Merge details from foundTx
+          Object.assign(pendingTx, {
+            blockNumber: foundTx.blockNumber,
+            extrinsicIndex: foundTx.extrinsicIndex,
+            success: foundTx.success,
+            fee: foundTx.fee,
+            finalized: foundTx.finalized
+          });
+        }
+        clearInterval(pollTxInterval.value);
+        pollTxInterval.value = null;
+        currentPendingHash.value = null;
+        isTransferring.value = false;
+        currentStatus.value = '';
+      } else {
+        pollCount++;
+        addLog(`Polling for transaction (${pollCount}/${maxPolls})...`);
+        if (pollCount >= maxPolls) {
+          clearInterval(pollTxInterval.value);
+          pollTxInterval.value = null;
+          addLog('Polling for transaction timed out');
+          currentPendingHash.value = null;
+          isTransferring.value = false;
+          currentStatus.value = '';
+        }
+      }
+    }, 10000);
+    addLog('Started polling for submitted transaction (every 10s)');
+  };
+
   // Status update callback for transfer (updated to start EVM polling on C2E finalization)
   const handleTransferStatus = ({ status }) => {
+    if (status.type) {
+      currentStatus.value = status.type.toLowerCase().replace(/([A-Z])/g, ' $1').trim();
+    }
     if (status.isInBlock) {
-      addLog('Transaction in block');
+      addLog(`Transaction ${currentPendingHash.value} in block`);
+      const pendingTx = transactions.value.find(tx => tx.hash === currentPendingHash.value);
+      if (pendingTx) {
+        pendingTx.status = 'in block';
+      }
+      if (direction.value === 'consensusToEVM' && currentPendingHash.value) {
+        startPollingForTx(currentPendingHash.value);
+      }
     }
     if (status.isFinalized) {
       addLog('Substrate transaction finalized, reload transactions');
+      fetchTransactions();
       if (direction.value === 'consensusToEVM') {
-        fetchTransactions();
+        // Update pending tx status if exists and log countdown info
+        const pendingTx = transactions.value.find(tx => (tx.status === 'pending' || tx.status === 'in block' || tx.status === 'submitted') && tx.hash === currentPendingHash.value);
+        if (pendingTx && pendingTx.expectedArrival) {
+          pendingTx.status = 'finalized on consensus';
+          const arrivalDate = new Date(pendingTx.expectedArrival);
+          const timeLeftMs = arrivalDate.getTime() - Date.now();
+          const timeLeftMin = Math.max(0, Math.ceil(timeLeftMs / 60000));
+          addLog(`Consensus finalized! Funds expected on EVM in ~${timeLeftMin} minutes. Polling balance...`);
+        }
         // Start polling EVM balance for ~10 min
         if (pollInterval.value) {
           clearInterval(pollInterval.value);
@@ -99,23 +174,60 @@ export const useTransferStore = defineStore('transfer', () => {
         }, 30000);
         addLog('Started EVM balance polling for C2E arrival');
       }
+      // Stop tx polling if running
+      if (pollTxInterval.value) {
+        clearInterval(pollTxInterval.value);
+        pollTxInterval.value = null;
+      }
+      currentPendingHash.value = null;
       isTransferring.value = false;
+      currentStatus.value = '';
     }
     if (status.isRetracted) {
       addLog('Transaction retracted');
       isTransferring.value = false;
+      currentStatus.value = '';
+      currentPendingHash.value = null;
+      if (pollTxInterval.value) {
+        clearInterval(pollTxInterval.value);
+        pollTxInterval.value = null;
+      }
       if (pollInterval.value) {
         clearInterval(pollInterval.value);
         pollInterval.value = null;
       }
+      alert('Transaction was retracted by the network.\n\nPlease check your wallet and try the transfer again.');
     }
     if (status.isFinalityTimeout) {
       addLog('Transaction finality timeout - may finalize later');
       isTransferring.value = false;
+      currentStatus.value = '';
+      currentPendingHash.value = null;
+      if (pollTxInterval.value) {
+        clearInterval(pollTxInterval.value);
+        pollTxInterval.value = null;
+      }
       if (pollInterval.value) {
         clearInterval(pollInterval.value);
         pollInterval.value = null;
       }
+      alert('Transaction finality timed out.\n\nIt may finalize later—check your transactions list. If not, please retry the transfer.');
+    }
+    if (status.isDropped || status.isInvalid) {
+      const statusMsg = status.type.toLowerCase();
+      addLog(`Transaction ${statusMsg}`);
+      isTransferring.value = false;
+      currentStatus.value = '';
+      currentPendingHash.value = null;
+      if (pollTxInterval.value) {
+        clearInterval(pollTxInterval.value);
+        pollTxInterval.value = null;
+      }
+      if (pollInterval.value) {
+        clearInterval(pollInterval.value);
+        pollInterval.value = null;
+      }
+      alert(`Transfer failed: Transaction ${statusMsg}.\n\nPlease ensure sufficient balance and network connectivity, then try again.`);
     }
   };
 
@@ -123,7 +235,7 @@ export const useTransferStore = defineStore('transfer', () => {
   const performTransfer = async () => {
     if (!amount.value || amount.value < MIN_TRANSFER_AMOUNT) {
       addLog('Amount below minimum transfer amount');
-      alert(`Minimum transfer amount is ${MIN_TRANSFER_AMOUNT} AI3`);
+      alert(`The minimum transfer amount is ${MIN_TRANSFER_AMOUNT} AI3.\n\nPlease enter a valid amount to proceed.`);
       return;
     }
     const amountWei = BigInt(Math.floor(amount.value * Number(10n ** DECIMALS)));
@@ -146,32 +258,41 @@ export const useTransferStore = defineStore('transfer', () => {
       if (direction.value === 'consensusToEVM') {
         if (!substrate.consensusApi?.value || !evm.evmAddress.value) {
           addLog('Missing Consensus API or EVM address for transfer');
-          alert('Connect both wallets first.');
+          alert('Please connect both Consensus and EVM wallets to proceed with the transfer.');
           newTx.status = 'failed';
           return;
         }
         addLog('Creating Consensus to EVM transfer...');
         isTransferring.value = true;
+        currentStatus.value = 'pending';
+        currentPendingHash.value = null; // Reset
 
         // Delegate to substrate composable (moved logic)
-        const unsubscribe = await substrate.performConsensusTransfer(
+        const { unsubscribe, hash } = await substrate.performConsensusTransfer(
           evm.evmAddress.value,
           amountWei,
           handleTransferStatus  // Pass callback for status handling
         );
 
-        // On finalization (handled in callback, but start polling here if needed)
-        // Note: Polling starts in handleTransferStatus on isFinalized
+        newTx.hash = hash;
         newTx.unsubscribe = unsubscribe;  // Track for cleanup if needed
+        currentPendingHash.value = hash;
         addLog('Consensus transfer delegated and initiated');
       } else {
         newTx.status = 'manual instructions provided';
         addLog('Manual instructions for EVM to Consensus provided');
         alert('EVM → Consensus transfers require signing a Substrate extrinsic on Auto-EVM.\n\nSteps:\n1. Go to https://polkadot.js.org/apps/?rpc=' + EVM_WS_RPC + '#/extrinsics\n2. Select your EVM-derived account (import 0x private key as "substrate" type if needed).\n3. Choose transporter.transfer()\n4. Set dstLocation.chainId = Consensus\n5. Enter consensus address (e.g., your connected one: ' + consensusAddressExposed.value + ')\n6. Amount: ' + amount.value + ' AI3 (in Shannons: ' + amountWei.toString() + ')\n7. Submit & wait ~1 day.\n\nOr use SubWallet connected to Auto-EVM.');
+        isTransferring.value = false;
       }
     } catch (error) {
       newTx.status = 'failed';
       isTransferring.value = false;
+      currentStatus.value = '';
+      currentPendingHash.value = null;
+      if (pollTxInterval.value) {
+        clearInterval(pollTxInterval.value);
+        pollTxInterval.value = null;
+      }
       if (pollInterval.value) {
         clearInterval(pollInterval.value);
         pollInterval.value = null;
@@ -181,7 +302,7 @@ export const useTransferStore = defineStore('transfer', () => {
       }
       addLog(`Transfer failed: ${error.message}`);
       console.error('Transfer failed:', error);
-      alert('Transfer failed: ' + error.message);
+      alert(`Transfer initiation failed: ${error.message}\n\nPlease ensure both wallets are connected, you have sufficient balance, and try again.`);
     }
   };
 
@@ -210,6 +331,10 @@ export const useTransferStore = defineStore('transfer', () => {
       clearInterval(pollInterval.value);
       pollInterval.value = null;
     }
+    if (pollTxInterval.value) {
+      clearInterval(pollTxInterval.value);
+      pollTxInterval.value = null;
+    }
   };
 
   return {
@@ -227,6 +352,7 @@ export const useTransferStore = defineStore('transfer', () => {
     sourceBalance,
     canTransfer,
     allFetchedTransactions,
+    currentStatus,  // New
     // Orchestrated Actions
     updateBalances,
     fetchTransactions,

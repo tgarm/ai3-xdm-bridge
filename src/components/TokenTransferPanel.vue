@@ -14,7 +14,7 @@
       <p class="min-note">Minimum transfer: {{ store.minTransferAmount }} AI3</p>
     </div>
     <button @click="store.performTransfer" :disabled="!store.canTransfer">
-      {{ store.isTransferring ? 'Transferring...' : 'Transfer AI3' }}
+      {{ store.isTransferring ? (store.currentStatus ? `Transferring... ${store.currentStatus}` : 'Transferring...') : 'Transfer AI3' }}
     </button>
   </div>
 </template>

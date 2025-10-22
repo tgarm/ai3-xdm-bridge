@@ -39,7 +39,7 @@ onUnmounted(() => {
 <style>
 body {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  max-width: 1200px;
+  max-width: 1440px;
   margin: 0 auto;
   padding: 20px;
   background-color: #f5f5f5;

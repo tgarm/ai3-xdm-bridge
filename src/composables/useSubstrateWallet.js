@@ -118,7 +118,7 @@ export function useSubstrateWallet(addLog) {
         }
     };
 
-    // Fetch transactions (updated to add expectedArrival for C2E)
+    // Fetch transactions (updated to dedup by hash and only process new)
     const fetchTransactions = async () => {
         const apiToUse = readOnlyConsensusApi.value || consensusApi.value;
         if (!apiToUse || !consensusAddress.value) return;
@@ -147,7 +147,6 @@ export function useSubstrateWallet(addLog) {
                 }
 
                 const data = await response.json();
-                //console.log('Subscan Extrinsics Response (page ' + page + '):', JSON.stringify(data, null, 2));
                 addLog(`Subscan extrinsics page ${page} fetched: ${data.data?.extrinsics?.length || 0} items`);
 
                 if (data.code !== 0) {
@@ -168,11 +167,18 @@ export function useSubstrateWallet(addLog) {
 
             addLog(`Found ${transporterTxs.length} transporter transfers; fetching details...`);
 
+            // Dedup: get existing hashes
+            const existingHashes = new Set(fetchedTransactions.value.map(tx => tx.hash));
+
             // Use consistent decimals for calculations
             const decimals = Number(10n ** DECIMALS);
 
-            // Fetch details using Polkadot API
+            let newCount = 0;
+
+            // Fetch details using Polkadot API only for new txs
             for (const tx of transporterTxs) {
+                if (existingHashes.has(tx.extrinsic_hash)) continue;
+
                 try {
                     const blockNum = parseInt(tx.block_num);
                     const extrinsicIdx = parseInt(tx.extrinsic_index.split('-')[1]);
@@ -193,7 +199,7 @@ export function useSubstrateWallet(addLog) {
                         const expectedArrival = destAccount.startsWith('0x') ? new Date(transferTime.getTime() + 10 * 60 * 1000).toISOString() : null;
                         const direction = destAccount.startsWith('0x') ? 'consensusToEVM' : 'consensusToConsensus';
 
-                        // Log detailed information to page via addLog
+                        // Log detailed information to page via addLog only for new
                         addLog(`Transporter Tx ${tx.extrinsic_hash}: ${amount} AI3 to ${destAccount} (Domain: ${domainId})`);
 
                         fetchedTransactions.value.push({
@@ -214,6 +220,7 @@ export function useSubstrateWallet(addLog) {
                             timestamp: transferTime.toISOString(),
                             finalized: tx.finalized,
                         });
+                        newCount++;
                     }
                 } catch (detailError) {
                     addLog(`Error fetching details for tx ${tx.extrinsic_hash}: ${detailError.message}`);
@@ -221,7 +228,7 @@ export function useSubstrateWallet(addLog) {
             }
 
             fetchedTransactions.value.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-            addLog(`Processed ${fetchedTransactions.value.length} Consensus transporter transfers`);
+            addLog(`Processed ${newCount} new Consensus transporter transfers (total: ${fetchedTransactions.value.length})`);
         } catch (error) {
             addLog(`Error fetching Consensus extrinsics via Subscan V2: ${error.message}`);
         }
@@ -254,6 +261,7 @@ export function useSubstrateWallet(addLog) {
             addLog('Auto-XDM SDK imported dynamically');
 
             const tx = await transferToDomainAccount20Type(consensusApi.value, DOMAIN_ID, evmAddress, amountWei.toString());
+            const extrinsicHash = tx.hash.toHex();
             addLog('Transfer extrinsic prepared via SDK');
 
             addLog('Signing and sending transaction... (check extension for signature prompt)');
@@ -264,25 +272,19 @@ export function useSubstrateWallet(addLog) {
 
                 if (status.isInBlock) {
                     addLog('Transaction in block');
-                    unsubscribe();
-                    fetchTransactions();
                 }
                 if (status.isFinalized) {
                     addLog('Substrate transaction finalized');
-                    unsubscribe();
-                    fetchTransactions();
                 }
                 if (status.isRetracted) {
                     addLog('Transaction retracted');
-                    unsubscribe();
                 }
                 if (status.isFinalityTimeout) {
                     addLog('Transaction finality timeout - may finalize later');
-                    unsubscribe();
                 }
             });
             addLog('signAndSend initiated (unsubscribe ready)');
-            return unsubscribe;  // Return for potential external cleanup
+            return { unsubscribe, hash: extrinsicHash };  // Return hash for tracking
         } catch (error) {
             addLog(`SDK transfer failed: ${error.message}`);
             console.error('SDK transfer error:', error);
@@ -297,7 +299,7 @@ export function useSubstrateWallet(addLog) {
             await web3Enable('ai3-transfer-app');
             const allAccounts = await web3Accounts();
             if (allAccounts.length === 0) {
-                alert('No accounts found. Install/Unlock SubWallet or Talisman.');
+                alert('No Consensus accounts found.\n\nPlease install and unlock SubWallet or Talisman extension, then refresh and try again.');
                 addLog('No accounts found in extension');
                 return;
             }
@@ -322,7 +324,7 @@ export function useSubstrateWallet(addLog) {
         } catch (error) {
             console.error('Consensus connection failed:', error);
             addLog(`Consensus connection failed: ${error.message}`);
-            alert('Connection failed: ' + error.message);
+            alert(`Consensus wallet connection failed: ${error.message}\n\nPlease ensure the extension is installed, unlocked, and has accounts, then try again.`);
         }
     };
 
