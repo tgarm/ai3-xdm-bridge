@@ -11,8 +11,8 @@
     <div class="bottom-container">
       <TokenTransferPanel />
       <div class="status-container">
-        <LoggingPanel />
         <TransactionHistoryPanel />
+        <LoggingPanel />
       </div>
     </div>
     
