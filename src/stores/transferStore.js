@@ -1,7 +1,6 @@
 // src/stores/transferStore.js
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';  // Added ref for pollInterval
-import { transferToDomainAccount20Type } from '@autonomys/auto-xdm';
 import { MIN_TRANSFER_AMOUNT, DOMAIN_ID, EVM_WS_RPC, DECIMALS } from '@/constants';
 import { useTransferUi } from '@/composables/useTransferUi';
 import { useSubstrateWallet } from '@/composables/useSubstrateWallet';
@@ -82,7 +81,7 @@ export const useTransferStore = defineStore('transfer', () => {
       await fetchTransactions();
 
       // Scan EVM txs for match: amount (tolerance), to=evmAddress, recent, success
-      const evmAddress = evm.metamaskAddress?.toLowerCase();
+      const evmAddress = evm.metamaskAddress.value?.toLowerCase();
       if (!evmAddress) return;
 
       const matchingEvmTx = evm.fetchedTransactions.value.find(tx => 
@@ -105,7 +104,39 @@ export const useTransferStore = defineStore('transfer', () => {
     }, 6000);  // Poll every 6s (block time)
   };
 
-  // Perform transfer (orchestrates both, with polling)
+  // Status update callback for transfer
+  const handleTransferStatus = ({ status }) => {
+    if (status.isInBlock) {
+      addLog('Transaction in block');
+    }
+    if (status.isFinalized) {
+      addLog('Substrate transaction finalized - polling EVM for bridge...');
+      if (direction.value === 'consensusToEVM') {
+        // Find the most recent pending transfer
+        const pendingTxs = transactions.value.filter(tx => tx.status === 'pending' || tx.status === 'in block');
+        if (pendingTxs.length > 0) {
+          const pendingTx = pendingTxs[pendingTxs.length - 1];  // last one
+          pendingTx.status = 'completed';  // substrate done
+          startBridgePolling(pendingTx);
+        }
+      }
+      isTransferring.value = false;
+    }
+    if (status.isRetracted) {
+      addLog('Transaction retracted');
+      isTransferring.value = false;
+      if (pollInterval.value) {
+        clearInterval(pollInterval.value);
+        pollInterval.value = null;
+      }
+    }
+    if (status.isFinalityTimeout) {
+      addLog('Transaction finality timeout - may finalize later');
+      isTransferring.value = false;
+    }
+  };
+
+  // Perform transfer (orchestrates both, with polling) - substrate logic delegated
   const performTransfer = async () => {
     if (!amount.value || amount.value < MIN_TRANSFER_AMOUNT) {
       addLog('Amount below minimum transfer amount');
@@ -127,7 +158,7 @@ export const useTransferStore = defineStore('transfer', () => {
 
     try {
       if (direction.value === 'consensusToEVM') {
-        if (!substrate.consensusApi || !evm.metamaskAddress) {
+        if (!substrate.consensusApi || !evm.metamaskAddress.value) {
           addLog('Missing Consensus API or EVM address for transfer');
           alert('Connect both wallets first.');
           newTx.status = 'failed';
@@ -135,41 +166,22 @@ export const useTransferStore = defineStore('transfer', () => {
         }
         addLog('Creating Consensus to EVM transfer...');
         isTransferring.value = true;
-        const tx = await transferToDomainAccount20Type(substrate.consensusApi, DOMAIN_ID, evm.metamaskAddress, amountWei.toString());
-        addLog('Transfer extrinsic prepared');
-        addLog('Signing and sending transaction... (check extension for signature prompt)');
-        const unsubscribe = await tx.signAndSend(substrate.consensusAccount.address, ({ status }) => {
-          addLog(`Transaction status: ${status.type}`);
-          if (status.isInBlock) {
-            newTx.status = 'in block';
-            addLog('Transaction in block');
-          }
-          if (status.isFinalized) {
-            newTx.status = 'completed';  // Substrate done; now poll EVM
-            addLog('Substrate transaction finalized - polling EVM for bridge...');
-            isTransferring.value = false;
-            startBridgePolling(newTx);  // Start 6s polling
-          }
-          if (status.isRetracted) {
-            newTx.status = 'retracted';
-            addLog('Transaction retracted');
-            isTransferring.value = false;
-            if (pollInterval.value) {
-              clearInterval(pollInterval.value);
-              pollInterval.value = null;
-            }
-          }
-          if (status.isFinalityTimeout) {
-            newTx.status = 'finality timeout';
-            addLog('Transaction finality timeout - may finalize later');
-            isTransferring.value = false;
-          }
-        });
-        addLog('signAndSend initiated (unsubscribe ready)');
+
+        // Delegate to substrate composable (moved logic)
+        const unsubscribe = await substrate.performConsensusTransfer(
+          evm.metamaskAddress.value,
+          amountWei,
+          handleTransferStatus  // Pass callback for status handling
+        );
+
+        // On finalization (handled in callback, but start polling here if needed)
+        // Note: Polling starts in handleTransferStatus on isFinalized
+        newTx.unsubscribe = unsubscribe;  // Track for cleanup if needed
+        addLog('Consensus transfer delegated and initiated');
       } else {
         newTx.status = 'manual instructions provided';
         addLog('Manual instructions for EVM to Consensus provided');
-        alert('EVM → Consensus transfers require signing a Substrate extrinsic on Auto-EVM.\n\nSteps:\n1. Go to https://polkadot.js.org/apps/?rpc=' + EVM_WS_RPC + '#/extrinsics\n2. Select your EVM-derived account (import 0x private key as "substrate" type if needed).\n3. Choose transporter.transfer()\n4. Set dstLocation.chainId = Consensus\n5. Enter consensus address (e.g., your connected one: ' + substrate.consensusAddress + ')\n6. Amount: ' + amount.value + ' AI3 (in Shannons: ' + amountWei.toString() + ')\n7. Submit & wait ~1 day.\n\nOr use SubWallet connected to Auto-EVM.');
+        alert('EVM → Consensus transfers require signing a Substrate extrinsic on Auto-EVM.\n\nSteps:\n1. Go to https://polkadot.js.org/apps/?rpc=' + EVM_WS_RPC + '#/extrinsics\n2. Select your EVM-derived account (import 0x private key as "substrate" type if needed).\n3. Choose transporter.transfer()\n4. Set dstLocation.chainId = Consensus\n5. Enter consensus address (e.g., your connected one: ' + substrate.consensusAddress.value + ')\n6. Amount: ' + amount.value + ' AI3 (in Shannons: ' + amountWei.toString() + ')\n7. Submit & wait ~1 day.\n\nOr use SubWallet connected to Auto-EVM.');
       }
     } catch (error) {
       newTx.status = 'failed';
@@ -177,6 +189,9 @@ export const useTransferStore = defineStore('transfer', () => {
       if (pollInterval.value) {
         clearInterval(pollInterval.value);
         pollInterval.value = null;
+      }
+      if (newTx.unsubscribe) {
+        newTx.unsubscribe();  // Cleanup if initiated
       }
       addLog(`Transfer failed: ${error.message}`);
       console.error('Transfer failed:', error);
