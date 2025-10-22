@@ -2,7 +2,7 @@ import { ref, markRaw } from 'vue';
 import { web3Accounts, web3Enable, web3FromAddress } from '@polkadot/extension-dapp';
 import { ApiPromise, WsProvider } from '@polkadot/api';  // Back to direct for control
 import { decodeAddress, encodeAddress } from '@polkadot/util-crypto';
-import { CONSENSUS_RPC, AUTONOMYS_PREFIX, DECIMALS, LOCAL_STORAGE_KEY_CONSENSUS, SUBSCAN_BASE } from '@/constants';
+import { CONSENSUS_RPC, AUTONOMYS_PREFIX, DECIMALS, SUBSCAN_BASE } from '@/constants';
 
 export function useSubstrateWallet(addLog) {
     // Substrate State
@@ -27,45 +27,62 @@ export function useSubstrateWallet(addLog) {
         addLog('APIs disconnected');
     };
 
-    // Initialize from localStorage
-    const initFromStorage = () => {
-        const storedConsensus = localStorage.getItem(LOCAL_STORAGE_KEY_CONSENSUS);
-        if (storedConsensus) {
-            consensusAddress.value = storedConsensus;
-            addLog(`Loaded consensus address from localStorage: ${consensusAddress.value}`);
-        }
-    };
-
-    initFromStorage();
-
-    // Helper: Create API instance (shared for read-only/signed)
-    const createApiInstance = async (isSigned = false) => {
+    async function createApiInstance() {
         try {
-            const provider = new WsProvider(CONSENSUS_RPC);  // Mainnet RPC
-            const apiInstance = await ApiPromise.create({provider});
+            addLog('Creating API instance...');
+            const provider = new WsProvider(CONSENSUS_RPC);
+            const apiInstance = await ApiPromise.create({
+                provider,
+                types: {
+                    // Core types from SDK/docs + fix for SpDomainsChainId
+                    AccountId20: '[u8;20]',
+                    DomainId: 'u32',
+                    ChainId: 'u32',
+                    SpDomainsChainId: 'u32', // Registers the missing type (u32 alias)
+                    // XCM for dest if needed by SDK internals
+                    MultiLocation: {
+                        parents: 'u8',
+                        interior: 'Junctions'
+                    },
+                    Junctions: {
+                        _enum: {
+                            Here: null,
+                            X1: 'Junction'
+                        }
+                    },
+                    Junction: {
+                        _enum: {
+                            AccountId20: 'AccountId20'
+                        }
+                    }
+                }
+            });
+
+            // Refresh metadata (critical for runtime types)
             const metadata = await apiInstance.rpc.state.getMetadata();
             apiInstance.registry.setMetadata(metadata);
-            addLog('Metadata refreshed for custom types');
+            addLog('Metadata refreshed for mainnet custom types');
+
             await apiInstance.isReady;
 
-            /*      
-                  // Refresh metadata to ensure runtime types (Domains pallet)
-                  const metadata = await apiInstance.rpc.state.getMetadata();
-                  apiInstance.registry.setMetadata(metadata);
-            
-                  // Verify key type
-                  if (apiInstance.registry.get('SpDomainsChainId')) {
-                    addLog(`${isSigned ? 'Signed' : 'Read-only'} Consensus API: SpDomainsChainId registered via custom types`);
-                  } else {
-                    addLog(`Warning: SpDomainsChainId not fully resolved`);
-                  }
-            */
-            return markRaw(apiInstance);
+            // Validate chain
+            const chain = await apiInstance.rpc.system.chain();
+            const expectedName = 'Autonomys Mainnet';
+            addLog(`Connected to ${chain} (expected: ${expectedName})`);
+
+            // Verify SDK-required types
+            if (apiInstance.registry.get('SpDomainsChainId') && apiInstance.registry.get('AccountId20')) {
+                addLog('SDK types (SpDomainsChainId, AccountId20) registered successfully');
+            } else {
+                throw new Error('SDK type registration failed');
+            }
+
+            return apiInstance;
         } catch (error) {
-            addLog(`Error creating API instance: ${error.message}`);
+            addLog(`Error creating API: ${error.message}`);
             throw error;
         }
-    };
+    }
 
     // Create read-only API if address set
     const initReadOnlyApi = async () => {
@@ -219,8 +236,6 @@ export function useSubstrateWallet(addLog) {
 
             const publicKey = decodeAddress(consensusAccount.value.address);
             consensusAddress.value = encodeAddress(publicKey, AUTONOMYS_PREFIX);
-            localStorage.setItem(LOCAL_STORAGE_KEY_CONSENSUS, consensusAddress.value);
-            addLog(`Consensus address set: ${consensusAddress.value}`);
 
             // Create signed API with custom types (Mainnet)
             consensusApi.value = await createApiInstance(true);

@@ -39,7 +39,7 @@ const buttonText = computed(() => {
 });
 
 const handleButtonClick = async () => {
-  if (store.consensusConnected) {
+  if (store.consensusAddress) {
     try {
       await navigator.clipboard.writeText(store.consensusAddress);
       alert('Address copied to clipboard!');
