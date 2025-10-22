@@ -1,8 +1,9 @@
-// src/composables/useSubstrateWallet.js (Updated)
-import { ref } from 'vue';
+// src/composables/useSubstrateWallet.js (Fixed with markRaw + dynamic SDK import)
+import { ref, markRaw } from 'vue'; // ADDED: markRaw to skip reactivity on ApiPromise
 import { web3Accounts, web3Enable, web3FromAddress } from '@polkadot/extension-dapp';
-import { ApiPromise, WsProvider } from '@polkadot/api';  // Back to direct for control
+import { ApiPromise, WsProvider } from '@polkadot/api';
 import { decodeAddress, encodeAddress } from '@polkadot/util-crypto';
+// REMOVED: Static import of transferToDomainAccount20Type (revert to dynamic)
 import { CONSENSUS_RPC, AUTONOMYS_PREFIX, DECIMALS, SUBSCAN_BASE, DOMAIN_ID } from '@/constants';
 
 export function useSubstrateWallet(addLog) {
@@ -15,7 +16,7 @@ export function useSubstrateWallet(addLog) {
     const consensusAddress = ref('');
     const fetchedTransactions = ref([]); // Consensus transporter transfers
 
-    // Cleanup function (call on unmount)
+    // Cleanup function (unchanged)
     const disconnectApis = async () => {
         if (consensusApi.value) {
             await consensusApi.value.disconnect();
@@ -26,6 +27,55 @@ export function useSubstrateWallet(addLog) {
             readOnlyConsensusApi.value = null;
         }
         addLog('APIs disconnected');
+    };
+
+    // Reusable helper to wait for API readiness (unchanged)
+    const waitForReady = async (api) => {
+        try {
+            await api.isReady;
+            addLog('API ready (standard)');
+            return;
+        } catch (error) {
+            console.warn('Standard isReady failed (expected in prod):', error.message);
+            
+            if (error.message.includes('#isReadyPromise') || error.message.includes('private member')) {
+                addLog('Using ready event fallback...');
+                await new Promise((resolve, reject) => {
+                    const timeout = setTimeout(() => {
+                        api.off('ready', handleReady);
+                        api.off('disconnected', handleDisconnect);
+                        reject(new Error('API readiness timeout (10s)'));
+                    }, 10000);
+
+                    const handleReady = () => {
+                        clearTimeout(timeout);
+                        api.off('ready', handleReady);
+                        api.off('disconnected', handleDisconnect);
+                        addLog('API ready (fallback)');
+                        resolve();
+                    };
+
+                    const handleDisconnect = () => {
+                        clearTimeout(timeout);
+                        api.off('ready', handleReady);
+                        reject(new Error('Disconnected before ready'));
+                    };
+
+                    api.on('ready', handleReady);
+                    api.on('disconnected', handleDisconnect);
+
+                    if (api.isConnected && api.registry?.isReady) { // Safe: Direct access post-markRaw
+                        clearTimeout(timeout);
+                        api.off('ready', handleReady);
+                        addLog('API ready (immediate check)');
+                        resolve();
+                    }
+                });
+            } else {
+                console.error('API readiness failed (non-proxy):', error);
+                throw error;
+            }
+        }
     };
 
     async function createApiInstance(rpcUrl) {
@@ -64,7 +114,7 @@ export function useSubstrateWallet(addLog) {
             apiInstance.registry.setMetadata(metadata);
             addLog('Metadata refreshed for mainnet custom types');
 
-            await apiInstance.isReady;
+            await waitForReady(apiInstance);
 
             // Validate chain
             const chain = await apiInstance.rpc.system.chain();
@@ -89,7 +139,8 @@ export function useSubstrateWallet(addLog) {
     const initReadOnlyApi = async () => {
         if (consensusAddress.value && !readOnlyConsensusApi.value) {
             try {
-                readOnlyConsensusApi.value = await createApiInstance(CONSENSUS_RPC);
+                const rawApi = await createApiInstance(CONSENSUS_RPC);
+                readOnlyConsensusApi.value = markRaw(rawApi); // ADDED: markRaw to prevent Vue reactivity proxy
                 addLog('Read-only Consensus API initialized with custom types (Mainnet)');
 
                 // Initial fetches after API is ready
@@ -118,7 +169,7 @@ export function useSubstrateWallet(addLog) {
         }
     };
 
-    // Fetch transactions (updated to dedup by hash and only process new)
+    // Fetch transactions (unchanged)
     const fetchTransactions = async () => {
         const apiToUse = readOnlyConsensusApi.value || consensusApi.value;
         if (!apiToUse || !consensusAddress.value) return;
@@ -234,32 +285,33 @@ export function useSubstrateWallet(addLog) {
         }
     };
 
-    // Perform Consensus to EVM transfer (moved here for substrate-specific isolation)
+    // Perform Consensus to EVM transfer (reverted to dynamic import + safe inspect)
     const performConsensusTransfer = async (evmAddress, amountWei, onStatusUpdate) => {
         if (!consensusApi.value) {
             throw new Error('Consensus API not initialized');
         }
 
-        // Inspect logging before SDK call
+        // Inspect logging with safe readiness check (unchanged)
         addLog(`=== Transfer Initialization Inspect ===`);
         addLog(`Consensus API exists: ${!!consensusApi.value}`);
-        addLog(`Consensus API ready: ${consensusApi.value?.isReady ? 'yes' : 'no'}`);
-        addLog(`API registry has SpDomainsChainId: ${!!consensusApi.value.registry.get('SpDomainsChainId')}`);
-        addLog(`API registry has AccountId20: ${!!consensusApi.value.registry.get('AccountId20')}`);
-        addLog(`API registry has DomainId: ${!!consensusApi.value.registry.get('DomainId')}`);
+        addLog(`Consensus API ready: ${consensusApi.value?.isConnected && consensusApi.value?.registry?.isReady ? 'yes' : 'no'}`);
+        addLog(`API registry has SpDomainsChainId: ${!!consensusApi.value?.registry?.get('SpDomainsChainId')}`);
+        addLog(`API registry has AccountId20: ${!!consensusApi.value?.registry?.get('AccountId20')}`);
+        addLog(`API registry has DomainId: ${!!consensusApi.value?.registry?.get('DomainId')}`);
         addLog(`DOMAIN_ID value/type: ${DOMAIN_ID} (${typeof DOMAIN_ID})`);
         addLog(`EVM address: ${evmAddress} (type: ${typeof evmAddress})`);
         addLog(`Amount Wei: ${amountWei} (type: ${typeof amountWei})`);
         addLog(`Consensus account address: ${consensusAccount.value?.address || 'N/A'}`);
         addLog(`Consensus encoded address: ${consensusAddress.value || 'N/A'}`);
-        addLog(`Signer attached: ${!!consensusApi.value._signer}`);
+        addLog(`Signer attached: ${!!consensusApi.value?._signer}`);
         addLog(`============================`);
 
         try {
-            // Dynamic import of SDK (mimic test.html to isolate bundling issues)
+            // REVERTED: Dynamic import to delay SDK bundling (avoids early registry access)
             const { transferToDomainAccount20Type } = await import('@autonomys/auto-xdm');
             addLog('Auto-XDM SDK imported dynamically');
 
+            // Pass markRaw-wrapped api (safe for SDK's registry access)
             const tx = await transferToDomainAccount20Type(consensusApi.value, DOMAIN_ID, evmAddress, amountWei.toString());
             const extrinsicHash = tx.hash.toHex();
             addLog('Transfer extrinsic prepared via SDK');
@@ -268,7 +320,7 @@ export function useSubstrateWallet(addLog) {
             const unsubscribe = await tx.signAndSend(consensusAccount.value.address, ({ status }) => {
                 const statusMsg = `Transaction status: ${status.type}`;
                 addLog(statusMsg);
-                onStatusUpdate?.({ status });  // Pass wrapped object to match expected destructuring
+                onStatusUpdate?.({ status });
 
                 if (status.isInBlock) {
                     addLog('Transaction in block');
@@ -284,7 +336,7 @@ export function useSubstrateWallet(addLog) {
                 }
             });
             addLog('signAndSend initiated (unsubscribe ready)');
-            return { unsubscribe, hash: extrinsicHash };  // Return hash for tracking
+            return { unsubscribe, hash: extrinsicHash };
         } catch (error) {
             addLog(`SDK transfer failed: ${error.message}`);
             console.error('SDK transfer error:', error);
@@ -292,7 +344,7 @@ export function useSubstrateWallet(addLog) {
         }
     };
 
-    // Connect Consensus wallet (creates signed API with types)
+    // Connect Consensus wallet (updated with markRaw)
     const connect = async () => {
         try {
             addLog('Attempting to connect Consensus wallet...');
@@ -309,8 +361,10 @@ export function useSubstrateWallet(addLog) {
             consensusAddress.value = encodeAddress(publicKey, AUTONOMYS_PREFIX);
 
             // Create signed API with custom types (Mainnet)
-            consensusApi.value = await createApiInstance(CONSENSUS_RPC);
-            await consensusApi.value.isReady;
+            const rawApi = await createApiInstance(CONSENSUS_RPC);
+            consensusApi.value = markRaw(rawApi); // ADDED: markRaw to prevent Vue reactivity proxy on ApiPromise
+            // Readiness covered by createApiInstance
+
             // Attach extension signer
             const injector = await web3FromAddress(consensusAccount.value.address);
             if (!injector) {
@@ -343,6 +397,6 @@ export function useSubstrateWallet(addLog) {
         fetchTransactions,
         initReadOnlyApi,
         disconnectApis,
-        performConsensusTransfer,  // New: Substrate-specific transfer handler
+        performConsensusTransfer,
     };
 }

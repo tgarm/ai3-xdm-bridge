@@ -6,7 +6,14 @@ import { resolve } from 'path'
 export default defineConfig({
   plugins: [vue(), nodePolyfills({ buffer: true, global: true, crypto: true })],  
   build: {
-      target: 'es2022'
+    target: 'esnext',
+    minify: 'terser',
+    terserOptions: {
+      mangle: false,
+      compress: true,
+      keep_fnames: true,
+      keep_classnames: true,
+    },
   },
   resolve: {
     alias: {
