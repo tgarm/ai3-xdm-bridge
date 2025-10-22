@@ -5,6 +5,9 @@ import { resolve } from 'path'
 
 export default defineConfig({
   plugins: [vue(), nodePolyfills({ buffer: true, global: true, crypto: true })],  
+  build: {
+      target: 'es2022'
+  },
   resolve: {
     alias: {
       "@": resolve(__dirname, "./src")
