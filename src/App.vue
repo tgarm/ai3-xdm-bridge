@@ -1,7 +1,10 @@
 <!-- src/App.vue -->
 <template>
   <div class="app">
-    <h1>AI3 Cross-Domain Transfer</h1>
+    <header class="header">
+      <img src="/logo.svg" alt="AI3-XDM-Bridge Logo" class="logo" />
+      <h1>AI3 Cross-Domain Transfer</h1>
+    </header>
     
     <div class="top-container">
       <SubstrateWalletPanel />
@@ -49,9 +52,22 @@ body {
   display: flex;
   flex-direction: column;
 }
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.logo {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+}
 h1 {
   text-align: center;
   color: #2c3e50;
+  margin: 0;
 }
 .top-container {
   display: flex;
@@ -76,6 +92,10 @@ h1 {
   margin-top: 20px;
 }
 @media (max-width: 768px) {
+  .header {
+    flex-direction: column;
+    gap: 8px;
+  }
   .top-container, .bottom-container {
     flex-direction: column;
   }
