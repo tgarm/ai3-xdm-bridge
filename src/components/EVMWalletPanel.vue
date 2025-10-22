@@ -2,12 +2,12 @@
 <template>
   <div class="panel">
     <h2>Auto-EVM Chain</h2>
-    <button @click="handleButtonClick" :disabled="!store.evmConnected && isConnecting">
+    <button @click="handleButtonClick" :disabled="isConnecting">
       {{ buttonText }}
     </button>
-    <div v-if="store.evmConnected">
+    <div v-if="evmConnected">
       <p class="balance">
-        {{ store.evmBalanceLoading ? 'Loading...' : store.evmBalance }} AI3
+        {{ evmBalanceLoading ? 'Loading...' : evmBalance }} AI3
       </p>
     </div>
   </div>
@@ -20,19 +20,25 @@ import { computed, ref } from 'vue';
 const store = useTransferStore();
 const isConnecting = ref(false); // Local state for button disabled during connect
 
+const evmConnected = computed(() => store.evmConnected);
+const evmAddress = computed(() => store.evmAddress);
+const evmBalance = computed(() => store.evmBalance);
+const evmBalanceLoading = computed(() => store.evmBalanceLoading);
+
 const truncatedAddress = computed(() => {
-  if (!store.evmAddress) return '';
-  return `${store.evmAddress.slice(0, 6)}...${store.evmAddress.slice(-4)}`;
+  const addr = evmAddress.value;
+  if (!addr) return '';
+  return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 });
 
 const buttonText = computed(() => {
-  return store.evmConnected ? truncatedAddress.value : 'Connect MetaMask';
+  return evmConnected.value ? truncatedAddress.value : 'Connect MetaMask';
 });
 
 const handleButtonClick = async () => {
-  if (store.evmConnected) {
+  if (evmConnected.value) {
     try {
-      await navigator.clipboard.writeText(store.evmAddress);
+      await navigator.clipboard.writeText(evmAddress.value);
       alert('Address copied to clipboard!');
     } catch (err) {
       console.error('Failed to copy address:', err);
@@ -79,9 +85,16 @@ button:disabled {
   background-color: #bdc3c7;
   cursor: not-allowed;
 }
+.address {
+  font-family: monospace;
+  font-size: 14px;
+  color: #333;
+  margin: 10px 0 5px 0;
+  word-break: break-all;
+}
 .balance {
   font-weight: bold;
   color: #27ae60;
-  margin: 10px 0 0 0;
+  margin: 0;
 }
 </style>

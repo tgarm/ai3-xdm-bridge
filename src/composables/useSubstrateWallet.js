@@ -255,7 +255,7 @@ export function useSubstrateWallet(addLog) {
             const unsubscribe = await tx.signAndSend(consensusAccount.value.address, ({ status }) => {
                 const statusMsg = `Transaction status: ${status.type}`;
                 addLog(statusMsg);
-                onStatusUpdate?.(status);
+                onStatusUpdate?.({ status });  // Pass wrapped object to match expected destructuring
 
                 if (status.isInBlock) {
                     addLog('Transaction in block');

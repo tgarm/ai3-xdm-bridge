@@ -7,7 +7,6 @@
       <span v-if="hasAddressButNotConnected" class="reconnect-hint">(Reconnect for signing)</span>
     </button>
     <div v-if="store.consensusAddress">
-      <p class="address">{{ truncatedAddress }}</p>
       <p class="balance">
         {{ store.consensusBalanceLoading ? 'Loading...' : store.consensusBalance }} AI3
       </p>

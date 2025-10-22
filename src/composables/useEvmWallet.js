@@ -1,6 +1,6 @@
 import { ref, markRaw } from 'vue';
 import { ethers } from 'ethers';
-import { LOCAL_STORAGE_KEY_EVM, EVM_CHAIN_ID, EVM_CHAIN_NAME, EVM_RPC_URLS, EVM_NATIVE_CURRENCY, EVM_EXPLORER_URLS } from '@/constants';
+import { EVM_CHAIN_ID, EVM_CHAIN_NAME, EVM_RPC_URLS, EVM_NATIVE_CURRENCY, EVM_EXPLORER_URLS } from '@/constants';
 
 export function useEvmWallet(addLog) {
   // EVM State
@@ -11,25 +11,14 @@ export function useEvmWallet(addLog) {
   const evmAddress = ref('');
   const fetchedTransactions = ref([]); // EVM transactions
 
-  // Initialize from localStorage
-  const initFromStorage = () => {
-    const storedEVM = localStorage.getItem(LOCAL_STORAGE_KEY_EVM);
-    if (storedEVM) {
-      evmAddress.value = storedEVM;
-      metamaskAddress.value = evmAddress.value;
-      addLog(`Loaded EVM address from localStorage: ${evmAddress.value}`);
-    }
-  };
-
-  initFromStorage();
-
   // Create provider if address set
   const initProvider = async () => {
     if (evmAddress.value && !metamaskProvider.value && typeof window.ethereum !== 'undefined') {
       try {
         const rawProvider = new ethers.BrowserProvider(window.ethereum);
         metamaskProvider.value = markRaw(rawProvider);
-        addLog('EVM provider initialized from stored address');
+        addLog('EVM provider initialized');
+        await updateBalance();
       } catch (error) {
         addLog(`Error initializing EVM provider: ${error.message}`);
       }
@@ -79,11 +68,12 @@ export function useEvmWallet(addLog) {
                   hash: tx.hash,
                   from: tx.from,
                   to: tx.to || null,
-                  value: parseFloat(ethers.formatEther(tx.value)),
+                  amount: parseFloat(ethers.formatEther(tx.value)),
                   gas: tx.gasLimit.toString(),
                   nonce: tx.nonce,
                   timestamp: block.timestamp ? new Date(block.timestamp * 1000).toISOString() : new Date().toISOString(),
                   direction: from === addr ? 'EVM Out' : 'EVM In',
+                  success: true, // Assume success for polling matcher
                 });
                 evmCount++;
                 addLog(`Found EVM tx: ${tx.hash} value ${ethers.formatEther(tx.value)} AI3`);
@@ -149,7 +139,6 @@ export function useEvmWallet(addLog) {
         const signer = await rawProvider.getSigner();
         metamaskAddress.value = await signer.getAddress();
         evmAddress.value = metamaskAddress.value;
-        localStorage.setItem(LOCAL_STORAGE_KEY_EVM, evmAddress.value);
         addLog(`EVM address set: ${evmAddress.value}`);
         await updateBalance();
         await fetchTransactions();

@@ -20,12 +20,12 @@ export const useTransferStore = defineStore('transfer', () => {
   const evm = useEvmWallet(addLog);
 
   // Computed (cross-wallet)
-  const consensusConnected = computed(() => !!substrate.consensusAccount);
-  const evmConnected = computed(() => !!evm.metamaskAddress);
+  const consensusConnected = computed(() => !!substrate.consensusAccount?.value);
+  const evmConnected = computed(() => !!evm.evmAddress.value);
   const sourceBalance = computed(() => {
     return direction.value === 'consensusToEVM' 
-      ? (substrate.consensusBalance ? parseFloat(substrate.consensusBalance) : 0)
-      : (evm.evmBalance ? parseFloat(evm.evmBalance) : 0);
+      ? (substrate.consensusBalance?.value ? parseFloat(substrate.consensusBalance.value) : 0)
+      : (evm.evmBalance?.value ? parseFloat(evm.evmBalance.value) : 0);
   });
   const canTransfer = computed(() => {
     const validAmount = amount.value >= MIN_TRANSFER_AMOUNT;
@@ -35,6 +35,14 @@ export const useTransferStore = defineStore('transfer', () => {
       return evmConnected.value && consensusConnected.value && validAmount;
     }
   });
+
+  // Exposed computed states for wallets (to avoid .value in components)
+  const consensusAddressExposed = computed(() => substrate.consensusAddress.value || '');
+  const consensusBalanceExposed = computed(() => substrate.consensusBalance.value || '0');
+  const consensusBalanceLoadingExposed = computed(() => substrate.consensusBalanceLoading.value);
+  const evmAddressExposed = computed(() => evm.evmAddress.value || '');
+  const evmBalanceExposed = computed(() => evm.evmBalance.value || '0');
+  const evmBalanceLoadingExposed = computed(() => evm.evmBalanceLoading.value);
 
   // Update balances (both wallets restored)
   const updateBalances = async () => {
@@ -81,7 +89,7 @@ export const useTransferStore = defineStore('transfer', () => {
       await fetchTransactions();
 
       // Scan EVM txs for match: amount (tolerance), to=evmAddress, recent, success
-      const evmAddress = evm.metamaskAddress.value?.toLowerCase();
+      const evmAddress = evm.evmAddress.value?.toLowerCase();
       if (!evmAddress) return;
 
       const matchingEvmTx = evm.fetchedTransactions.value.find(tx => 
@@ -158,7 +166,7 @@ export const useTransferStore = defineStore('transfer', () => {
 
     try {
       if (direction.value === 'consensusToEVM') {
-        if (!substrate.consensusApi || !evm.metamaskAddress.value) {
+        if (!substrate.consensusApi?.value || !evm.evmAddress.value) {
           addLog('Missing Consensus API or EVM address for transfer');
           alert('Connect both wallets first.');
           newTx.status = 'failed';
@@ -169,7 +177,7 @@ export const useTransferStore = defineStore('transfer', () => {
 
         // Delegate to substrate composable (moved logic)
         const unsubscribe = await substrate.performConsensusTransfer(
-          evm.metamaskAddress.value,
+          evm.evmAddress.value,
           amountWei,
           handleTransferStatus  // Pass callback for status handling
         );
@@ -181,7 +189,7 @@ export const useTransferStore = defineStore('transfer', () => {
       } else {
         newTx.status = 'manual instructions provided';
         addLog('Manual instructions for EVM to Consensus provided');
-        alert('EVM → Consensus transfers require signing a Substrate extrinsic on Auto-EVM.\n\nSteps:\n1. Go to https://polkadot.js.org/apps/?rpc=' + EVM_WS_RPC + '#/extrinsics\n2. Select your EVM-derived account (import 0x private key as "substrate" type if needed).\n3. Choose transporter.transfer()\n4. Set dstLocation.chainId = Consensus\n5. Enter consensus address (e.g., your connected one: ' + substrate.consensusAddress.value + ')\n6. Amount: ' + amount.value + ' AI3 (in Shannons: ' + amountWei.toString() + ')\n7. Submit & wait ~1 day.\n\nOr use SubWallet connected to Auto-EVM.');
+        alert('EVM → Consensus transfers require signing a Substrate extrinsic on Auto-EVM.\n\nSteps:\n1. Go to https://polkadot.js.org/apps/?rpc=' + EVM_WS_RPC + '#/extrinsics\n2. Select your EVM-derived account (import 0x private key as "substrate" type if needed).\n3. Choose transporter.transfer()\n4. Set dstLocation.chainId = Consensus\n5. Enter consensus address (e.g., your connected one: ' + consensusAddressExposed.value + ')\n6. Amount: ' + amount.value + ' AI3 (in Shannons: ' + amountWei.toString() + ')\n7. Submit & wait ~1 day.\n\nOr use SubWallet connected to Auto-EVM.');
       }
     } catch (error) {
       newTx.status = 'failed';
@@ -211,7 +219,7 @@ export const useTransferStore = defineStore('transfer', () => {
 
   // Initial fetches after inits (for loaded addresses)
   const initIfLoaded = async () => {
-    if (substrate.consensusAddress || evm.metamaskAddress) {
+    if (substrate.consensusAddress.value || evm.evmAddress.value) {
       await updateBalances();
       await fetchTransactions();
     }
@@ -250,13 +258,13 @@ export const useTransferStore = defineStore('transfer', () => {
     performTransfer,
     stopPolling,  // Expose for cleanup if needed
     minTransferAmount: MIN_TRANSFER_AMOUNT,
-    // Wallet States (exposed for panels)
-    consensusAddress: substrate.consensusAddress,
-    consensusBalance: substrate.consensusBalance,
-    consensusBalanceLoading: substrate.consensusBalanceLoading,
-    evmAddress: evm.metamaskAddress,  // e.g., for EVM panel
-    evmBalance: evm.evmBalance,
-    evmBalanceLoading: evm.evmBalanceLoading,  // Assume this exists in useEvmWallet
+    // Wallet States (exposed as computed strings/booleans for easier use in components)
+    consensusAddress: consensusAddressExposed,
+    consensusBalance: consensusBalanceExposed,
+    consensusBalanceLoading: consensusBalanceLoadingExposed,
+    evmAddress: evmAddressExposed,
+    evmBalance: evmBalanceExposed,
+    evmBalanceLoading: evmBalanceLoadingExposed,
     disconnectApis: substrate.disconnectApis
   };
 });
