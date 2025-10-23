@@ -1,5 +1,6 @@
 <!-- src/App.vue -->
 <template>
+  <Analytics />
   <div class="app">
     <header class="header">
       <img src="/logo.svg" alt="AI3-XDM-Bridge Logo" class="logo" />
@@ -33,6 +34,8 @@ import TokenTransferPanel from './components/TokenTransferPanel.vue';
 import LoggingPanel from './components/LoggingPanel.vue';
 import TransactionHistoryPanel from './components/TransactionHistoryPanel.vue';
 import DocumentPanel from './components/DocumentPanel.vue';
+
+import { Analytics } from '@vercel/analytics/vue';
 
 onUnmounted(() => {
   store.disconnectApis?.();
