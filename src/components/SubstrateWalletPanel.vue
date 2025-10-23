@@ -1,22 +1,33 @@
 <!-- src/components/SubstrateWalletPanel.vue -->
 <template>
-  <div class="panel">
-    <h2>Consensus Chain</h2>
-    <button @click="handleButtonClick" :disabled="isConnecting">
-      {{ buttonText }}
-      <span v-if="hasAddressButNotConnected" class="reconnect-hint">(Reconnect for signing)</span>
-    </button>
-    <div v-if="store.consensusAddress">
-      <p class="balance">
-        {{ store.consensusBalanceLoading ? 'Loading...' : store.consensusBalance }} AI3
-      </p>
+  <el-card>
+    <template #header>
+      <div class="card-header">
+        <span>Consensus Chain</span>
+      </div>
+    </template>
+    <el-button @click="handleButtonClick" :loading="isConnecting" :type="store.consensusConnected ? 'success' : 'primary'" style="width: 100%; justify-content: flex-start;">
+      <span ref="buttonTextRef" class="button-text">{{ buttonText }}</span>
+      <el-tag v-if="hasAddressButNotConnected" type="warning" size="small" effect="light" style="margin-left: auto;">
+        Reconnect
+      </el-tag>
+    </el-button>
+    <div v-if="store.consensusAddress" class="balance-container">
+      <el-skeleton :loading="store.consensusBalanceLoading" animated>
+        <template #template>
+          <el-skeleton-item variant="p" style="width: 50%" />
+        </template>
+        <template #default>
+          <p class="balance">{{ store.consensusBalance }} AI3</p>
+        </template>
+      </el-skeleton>
     </div>
-  </div>
+  </el-card>
 </template>
 
 <script setup>
 import { useTransferStore } from '@/stores/transferStore';
-import { computed, ref } from 'vue';
+import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue';
 
 const store = useTransferStore();
 const isConnecting = ref(false);
@@ -26,27 +37,62 @@ const truncatedAddress = computed(() => {
   return `${store.consensusAddress.slice(0, 6)}...${store.consensusAddress.slice(-4)}`;
 });
 
-const hasAddressButNotConnected = computed(() => 
+const hasAddressButNotConnected = computed(() =>
   !!store.consensusAddress && !store.consensusConnected
 );
 
-const buttonText = computed(() => {
-  if (store.consensusAddress) {
-    return truncatedAddress.value;
+const buttonTextRef = ref(null);
+const useTruncated = ref(false);
+let resizeObserver = null;
+
+const checkWidth = () => {
+  if (!buttonTextRef.value || !store.consensusAddress) {
+    useTruncated.value = false;
+    return;
   }
-  return 'Connect SubWallet/Talisman';
+  // Temporarily set text to full address to measure its potential width
+  buttonTextRef.value.textContent = store.consensusAddress;
+  // Compare the text's scroll width to the element's client width
+  useTruncated.value = buttonTextRef.value.scrollWidth > buttonTextRef.value.clientWidth;
+  // The buttonText computed property will now correctly display the right version
+};
+
+const buttonText = computed(() => {
+  if (!store.consensusAddress) return 'Connect SubWallet/Talisman';
+  return useTruncated.value ? truncatedAddress.value : store.consensusAddress;
+});
+
+watch(() => store.consensusAddress, () => {
+  // When the address changes, re-run the width check
+  checkWidth();
+});
+
+onMounted(() => {
+  if (buttonTextRef.value) {
+    // Watch for the button's size changing (e.g., window resize)
+    resizeObserver = new ResizeObserver(checkWidth);
+    resizeObserver.observe(buttonTextRef.value);
+  }
 });
 
 const handleButtonClick = async () => {
-  if (store.consensusAddress) {
+  // If we have an address but are not fully connected, the primary action is to reconnect.
+  if (hasAddressButNotConnected.value) {
+    isConnecting.value = true;
+    try {
+      await store.connectConsensus();
+    } finally {
+      isConnecting.value = false;
+    }
+  } else if (store.consensusAddress) { // If connected, the action is to copy the address.
     try {
       await navigator.clipboard.writeText(store.consensusAddress);
-      alert('Address copied to clipboard!');
+      ElNotification({ title: 'Success', message: 'Address copied to clipboard!', type: 'success', duration: 2000 });
     } catch (err) {
       console.error('Failed to copy address:', err);
-      alert('Failed to copy address. Please copy manually.');
+      ElNotification({ title: 'Error', message: 'Failed to copy address.', type: 'error' });
     }
-  } else {
+  } else { // If no address, the action is to connect for the first time.
     isConnecting.value = true;
     try {
       await store.connectConsensus();
@@ -55,55 +101,32 @@ const handleButtonClick = async () => {
     }
   }
 };
+
+onBeforeUnmount(() => {
+  if (resizeObserver && buttonTextRef.value) {
+    resizeObserver.unobserve(buttonTextRef.value);
+  }
+});
+
 </script>
 
 <style scoped>
-.panel {
-  background: white;
-  border-radius: 8px;
-  padding: 20px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-}
-button {
-  background-color: #3498db;
-  color: white;
-  border: none;
-  padding: 12px 20px;
-  margin: 5px 0;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 16px;
-  transition: background-color 0.3s;
-  width: 100%;
-  text-align: left;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-button:hover:not(:disabled) {
-  background-color: #2980b9;
+.button-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-button:disabled {
-  background-color: #bdc3c7;
-  cursor: not-allowed;
-}
-.address {
-  font-family: monospace;
-  font-size: 14px;
-  color: #7f8c8d;
-  margin: 5px 0;
+.balance-container {
+  margin-top: 15px;
 }
 .balance {
   font-weight: bold;
   color: #27ae60;
-  margin: 10px 0 0 0;
-}
-.reconnect-hint {
-  font-size: 12px;
-  color: #e67e22;
-  margin-left: 10px;
+  margin: 0;
 }
 </style>

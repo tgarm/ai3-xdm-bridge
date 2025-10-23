@@ -1,64 +1,44 @@
 <!-- src/components/LoggingPanel.vue -->
 <template>
-  <div class="panel">
-    <h2>Logs</h2>
-    <div class="logs-container">
-      <div v-for="log in store.logs" :key="log.id" class="log-item">
-        <span class="timestamp">{{ log.timestamp }}</span>
-        <span class="message">{{ log.message }}</span>
+  <el-card>
+    <template #header>
+      <div class="card-header">
+        <span>Logs</span>
+        <el-button type="danger" @click="store.clearLogs" text>Clear</el-button>
       </div>
-    </div>
-    <button @click="clearLogs" class="clear-btn">Clear Logs</button>
-  </div>
+    </template>
+    <el-scrollbar height="180px" class="logs-container">
+      <p v-for="log in store.logs" :key="log.timestamp" class="log-item">
+        <el-text type="info" size="small" class="timestamp">{{ log.timestamp }}</el-text>
+        <el-text class="message">{{ log.message }}</el-text>
+      </p>
+    </el-scrollbar>
+  </el-card>
 </template>
 
 <script setup>
 import { useTransferStore } from '@/stores/transferStore';
 
 const store = useTransferStore();
-
-const clearLogs = () => {
-  store.logs.value = [];
-};
 </script>
 
 <style scoped>
-.panel {
-  background: white;
-  border-radius: 8px;
-  padding: 20px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 .logs-container {
-  max-height: 300px;
-  overflow-y: auto;
-  border: 1px solid #ddd;
-  padding: 10px;
   background: #f9f9f9;
   font-family: monospace;
-  font-size: 14px;
+  border-radius: 4px;
+  padding: 10px;
 }
 .log-item {
   display: flex;
-  margin-bottom: 5px;
+  margin: 0 0 5px;
 }
 .timestamp {
-  color: #7f8c8d;
-  min-width: 80px;
-}
-.message {
-  flex: 1;
-}
-.clear-btn {
-  margin-top: 10px;
-  padding: 5px 10px;
-  background: #e74c3c;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-}
-.clear-btn:hover {
-  background: #c0392b;
+  margin-right: 10px;
 }
 </style>

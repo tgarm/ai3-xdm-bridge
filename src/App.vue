@@ -1,33 +1,35 @@
 <!-- src/App.vue -->
 <template>
   <Analytics />
-  <div class="app">
-    <header class="header">
-      <img src="/logo.svg" alt="AI3-XDM-Bridge Logo" class="logo" />
-      <h1>AI3 Cross-Domain Transfer</h1>
-    </header>
-    
-    <div class="top-container">
-      <SubstrateWalletPanel />
-      <EVMWalletPanel />
-    </div>
-    
-    <div class="bottom-container">
-      <TokenTransferPanel />
-      <div class="status-container">
-        <TransactionHistoryPanel />
-        <LoggingPanel />
+  <el-container class="app-container">
+    <el-header class="header">
+      <div class="header-content">
+        <img src="/logo.svg" alt="AI3-XDM-Bridge Logo" class="logo" />
+        <h1>AI3 Cross-Domain Transfer</h1>
       </div>
-    </div>
-    
-    <div class="doc-container">
-      <DocumentPanel />
-    </div>
-  </div>
+    </el-header>
+    <el-main>
+      <el-row :gutter="20">
+        <el-col :md="12"><SubstrateWalletPanel /></el-col>
+        <el-col :md="12"><EVMWalletPanel /></el-col>
+      </el-row>
+      <el-row :gutter="20">
+        <el-col :md="12">
+          <TokenTransferPanel />
+          <LoggingPanel style="margin-top: 20px;" />
+        </el-col>
+        <el-col :md="12"><TransactionHistoryPanel /></el-col>
+      </el-row>
+      <el-row :gutter="20">
+        <el-col :span="24"><DocumentPanel /></el-col>
+      </el-row>
+    </el-main>
+  </el-container>
 </template>
 
 <script setup>
-import { onUnmounted } from 'vue';
+import { onUnmounted, onMounted } from 'vue';
+import { useTransferStore } from '@/stores/transferStore';
 import SubstrateWalletPanel from './components/SubstrateWalletPanel.vue';
 import EVMWalletPanel from './components/EVMWalletPanel.vue';
 import TokenTransferPanel from './components/TokenTransferPanel.vue';
@@ -36,6 +38,7 @@ import TransactionHistoryPanel from './components/TransactionHistoryPanel.vue';
 import DocumentPanel from './components/DocumentPanel.vue';
 
 import { Analytics } from '@vercel/analytics/vue';
+const store = useTransferStore();
 
 onUnmounted(() => {
   store.disconnectApis?.();
@@ -43,24 +46,17 @@ onUnmounted(() => {
 </script>
 
 <style>
-body {
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  max-width: 1440px;
-  margin: 0 auto;
-  padding: 20px;
-  background-color: #f5f5f5;
-  color: #333;
-}
-.app {
-  display: flex;
-  flex-direction: column;
-}
 .header {
+  --el-header-padding: 0 20px;
+  --el-header-height: 60px;
+  background-color: #ffffff;
+  border-bottom: 1px solid var(--el-border-color-light);
+}
+.header-content {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 12px;
-  margin-bottom: 20px;
+  height: 100%;
+  gap: 15px;
 }
 .logo {
   width: 32px;
@@ -68,42 +64,14 @@ body {
   flex-shrink: 0;
 }
 h1 {
-  text-align: center;
   color: #2c3e50;
   margin: 0;
+  font-size: 1.5rem;
 }
-.top-container {
-  display: flex;
-  gap: 20px;
+.el-row {
   margin-bottom: 20px;
 }
-.top-container .panel {
-  flex: 1;
-}
-.bottom-container {
-  display: flex;
-  gap: 20px;
-  margin-bottom: 20px;
-}
-.status-container {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  flex: 1;
-}
-.doc-container {
-  margin-top: 20px;
-}
-@media (max-width: 768px) {
-  .header {
-    flex-direction: column;
-    gap: 8px;
-  }
-  .top-container, .bottom-container {
-    flex-direction: column;
-  }
-  .status-container {
-    flex-direction: column;
-  }
+.el-row:last-child {
+  margin-bottom: 0;
 }
 </style>

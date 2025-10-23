@@ -1,48 +1,76 @@
 <!-- src/components/EVMWalletPanel.vue -->
 <template>
-  <div class="panel">
-    <h2>Auto-EVM Chain</h2>
-    <button @click="handleButtonClick" :disabled="isConnecting">
-      {{ buttonText }}
-    </button>
-    <div v-if="evmConnected">
-      <p class="balance">
-        {{ evmBalanceLoading ? 'Loading...' : evmBalance }} AI3
-      </p>
+  <el-card>
+    <template #header>
+      <div class="card-header">
+        <span>Auto-EVM Chain</span>
+      </div>
+    </template>
+    <el-button @click="handleButtonClick" :loading="isConnecting" :type="store.evmConnected ? 'success' : 'primary'" style="width: 100%; justify-content: flex-start;">
+      <span ref="buttonTextRef" class="button-text">{{ buttonText }}</span>
+    </el-button>
+    <div v-if="store.evmConnected" class="balance-container">
+      <el-skeleton :loading="store.evmBalanceLoading" animated>
+        <template #template>
+          <el-skeleton-item variant="p" style="width: 50%" />
+        </template>
+        <template #default>
+          <p class="balance">{{ store.evmBalance }} AI3</p>
+        </template>
+      </el-skeleton>
     </div>
-  </div>
+  </el-card>
 </template>
 
 <script setup>
 import { useTransferStore } from '@/stores/transferStore';
-import { computed, ref } from 'vue';
+import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue';
 
 const store = useTransferStore();
-const isConnecting = ref(false); // Local state for button disabled during connect
-
-const evmConnected = computed(() => store.evmConnected);
-const evmAddress = computed(() => store.evmAddress);
-const evmBalance = computed(() => store.evmBalance);
-const evmBalanceLoading = computed(() => store.evmBalanceLoading);
+const isConnecting = ref(false);
 
 const truncatedAddress = computed(() => {
-  const addr = evmAddress.value;
-  if (!addr) return '';
-  return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+  if (!store.evmAddress) return '';
+  return `${store.evmAddress.slice(0, 6)}...${store.evmAddress.slice(-4)}`;
 });
 
+const buttonTextRef = ref(null);
+const useTruncated = ref(false);
+let resizeObserver = null;
+
+const checkWidth = () => {
+  if (!buttonTextRef.value || !store.evmAddress) {
+    useTruncated.value = false;
+    return;
+  }
+  buttonTextRef.value.textContent = store.evmAddress;
+  useTruncated.value = buttonTextRef.value.scrollWidth > buttonTextRef.value.clientWidth;
+};
+
 const buttonText = computed(() => {
-  return evmConnected.value ? truncatedAddress.value : 'Connect MetaMask';
+  if (!store.evmAddress) return 'Connect MetaMask';
+  return useTruncated.value ? truncatedAddress.value : store.evmAddress;
+});
+
+watch(() => store.evmAddress, () => {
+  checkWidth();
+});
+
+onMounted(() => {
+  if (buttonTextRef.value) {
+    resizeObserver = new ResizeObserver(checkWidth);
+    resizeObserver.observe(buttonTextRef.value);
+  }
 });
 
 const handleButtonClick = async () => {
-  if (evmConnected.value) {
+  if (store.evmConnected) {
     try {
-      await navigator.clipboard.writeText(evmAddress.value);
-      alert('Address copied to clipboard!');
+      await navigator.clipboard.writeText(store.evmAddress);
+      ElNotification({ title: 'Success', message: 'Address copied to clipboard!', type: 'success', duration: 2000 });
     } catch (err) {
       console.error('Failed to copy address:', err);
-      alert('Failed to copy address. Please copy manually.');
+      ElNotification({ title: 'Error', message: 'Failed to copy address.', type: 'error' });
     }
   } else {
     isConnecting.value = true;
@@ -53,44 +81,28 @@ const handleButtonClick = async () => {
     }
   }
 };
+
+onBeforeUnmount(() => {
+  if (resizeObserver && buttonTextRef.value) {
+    resizeObserver.unobserve(buttonTextRef.value);
+  }
+});
+
 </script>
 
 <style scoped>
-.panel {
-  background: white;
-  border-radius: 8px;
-  padding: 20px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
-button {
-  background-color: #3498db;
-  color: white;
-  border: none;
-  padding: 12px 20px;
-  margin: 5px 0;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 16px;
-  transition: background-color 0.3s;
-  width: 100%;
-  text-align: left;
+.button-text {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-button:hover:not(:disabled) {
-  background-color: #2980b9;
-}
-button:disabled {
-  background-color: #bdc3c7;
-  cursor: not-allowed;
-}
-.address {
-  font-family: monospace;
-  font-size: 14px;
-  color: #333;
-  margin: 10px 0 5px 0;
-  word-break: break-all;
+.balance-container {
+  margin-top: 15px;
 }
 .balance {
   font-weight: bold;
