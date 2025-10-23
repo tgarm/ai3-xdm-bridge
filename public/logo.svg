@@ -1,63 +1,20 @@
-<?xml version="1.0" encoding="utf-8" standalone="no"?>
-<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
-  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
-<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="110.88pt" height="110.88pt" viewBox="0 0 110.88 110.88" xmlns="http://www.w3.org/2000/svg" version="1.1">
- <metadata>
-  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
-   <cc:Work>
-    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
-    <dc:date>2025-10-22T09:28:23.153970</dc:date>
-    <dc:format>image/svg+xml</dc:format>
-    <dc:creator>
-     <cc:Agent>
-      <dc:title>Matplotlib v3.6.3, https://matplotlib.org/</dc:title>
-     </cc:Agent>
-    </dc:creator>
-   </cc:Work>
-  </rdf:RDF>
- </metadata>
- <defs>
-  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
- </defs>
- <g id="figure_1">
-  <g id="patch_1">
-   <path d="M 0 110.88 
-L 110.88 110.88 
-L 110.88 0 
-L 0 0 
-L 0 110.88 
-z
-" style="fill: none"/>
+<svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <!-- Define the gradient for the background -->
+  <defs>
+    <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4A90E2;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#50E3C2;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background with rounded corners and gradient fill -->
+  <rect x="0" y="0" width="100" height="100" rx="20" ry="20" fill="url(#logoGradient)" />
+
+  <!-- The 'X' mark with two lines of different widths -->
+  <g transform="translate(0, 2)">
+    <!-- Thicker line -->
+    <line x1="25" y1="25" x2="75" y2="75" stroke="white" stroke-width="14" stroke-linecap="round" />
+    <!-- Thinner line -->
+    <line x1="25" y1="75" x2="75" y2="25" stroke="white" stroke-width="7" stroke-linecap="round" />
   </g>
-  <g id="axes_1">
-   <g id="patch_2">
-    <path d="M 55.44 110.88 
-C 70.14286 110.88 84.245508 105.038492 94.642 94.642 
-C 105.038492 84.245508 110.88 70.14286 110.88 55.44 
-C 110.88 40.73714 105.038492 26.634492 94.642 16.238 
-C 84.245508 5.841508 70.14286 -0 55.44 -0 
-C 40.73714 -0 26.634492 5.841508 16.238 16.238 
-C 5.841508 26.634492 0 40.73714 0 55.44 
-C 0 70.14286 5.841508 84.245508 16.238 94.642 
-C 26.634492 105.038492 40.73714 110.88 55.44 110.88 
-z
-" clip-path="url(#p5104c0962a)" style="fill: #0000ff; opacity: 0.8; stroke: #0000ff; stroke-linejoin: miter"/>
-   </g>
-   <g id="line2d_1">
-    <path d="M 22.176 88.704 
-L 88.704 22.176 
-" clip-path="url(#p5104c0962a)" style="fill: none; stroke: #ffffff; stroke-width: 10"/>
-   </g>
-   <g id="line2d_2">
-    <path d="M 88.704 88.704 
-L 22.176 22.176 
-" clip-path="url(#p5104c0962a)" style="fill: none; stroke: #ffffff; stroke-width: 10"/>
-   </g>
-  </g>
- </g>
- <defs>
-  <clipPath id="p5104c0962a">
-   <rect x="0" y="-0" width="110.88" height="110.88"/>
-  </clipPath>
- </defs>
 </svg>

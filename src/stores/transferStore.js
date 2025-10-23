@@ -1,5 +1,6 @@
 // src/stores/transferStore.js (Updated)
 import { defineStore } from 'pinia';
+import { ElNotification } from 'element-plus';
 import { computed, ref } from 'vue';  // Added ref for pollInterval
 import { MIN_TRANSFER_AMOUNT, EVM_WS_RPC, DECIMALS } from '@/constants';
 import { useTransferUi } from '@/composables/useTransferUi';
@@ -135,6 +136,10 @@ export const useTransferStore = defineStore('transfer', () => {
     if (status.isInBlock) {
       addLog(`Transaction ${currentPendingHash.value} in block`);
       const pendingTx = transactions.value.find(tx => tx.hash === currentPendingHash.value);
+      // The hash from signAndSend is the real one. Update our pending tx.
+      const realHash = status.asInBlock.toHex();
+      addLog(`Transaction in block with hash: ${realHash}`);
+
       if (pendingTx) {
         pendingTx.status = 'in block';
       }
@@ -200,7 +205,7 @@ export const useTransferStore = defineStore('transfer', () => {
         title: 'Transaction Retracted',
         message: 'The transaction was retracted by the network. Please check your wallet and try again.',
         type: 'warning',
-        duration: 0, // Persist until closed
+        duration: 0
       });
     }
     if (status.isFinalityTimeout) {
@@ -217,10 +222,10 @@ export const useTransferStore = defineStore('transfer', () => {
         pollInterval.value = null;
       }
       ElNotification({
-        title: 'Finality Timeout',
-        message: 'The transaction finality timed out. It may finalize later—check your transaction history. If not, please retry.',
+        title: 'Transaction Timeout',
+        message: 'Finality timed out. It may still finalize, so please check your transaction history. If not, please retry.',
         type: 'warning',
-        duration: 0,
+        duration: 0
       });
     }
     if (status.isDropped || status.isInvalid) {
@@ -239,9 +244,9 @@ export const useTransferStore = defineStore('transfer', () => {
       }
       ElNotification({
         title: 'Transfer Failed',
-        message: `Transaction ${statusMsg}. Please ensure sufficient balance and network connectivity, then try again.`,
+        message: `The transaction was ${statusMsg}. Please ensure you have sufficient balance and network connectivity, then try again.`,
         type: 'error',
-        duration: 0,
+        duration: 0
       });
     }
   };
@@ -252,21 +257,27 @@ export const useTransferStore = defineStore('transfer', () => {
       addLog('Amount below minimum transfer amount');
       ElNotification({
         title: 'Invalid Amount',
-        message: `The minimum transfer amount is ${MIN_TRANSFER_AMOUNT} AI3. Please enter a valid amount.`,
+        message: `The minimum transfer amount is ${MIN_TRANSFER_AMOUNT} AI3. Please enter a valid amount to proceed.`,
         type: 'warning',
+        duration: 5000
       });
       return;
     }
-    if (amount.value > sourceBalance.value) {
-      addLog('Insufficient balance for transfer');
-      ElNotification({
-        title: 'Insufficient Balance',
-        message: 'You do not have enough funds for this transfer.',
-        type: 'error',
-      });
-      return;
-    }
-
+    const amountWei = BigInt(Math.floor(amount.value * Number(10n ** DECIMALS)));
+    const transferTime = new Date();
+    const estimatedTimeMs = direction.value === 'consensusToEVM' ? 10 * 60 * 1000 : 24 * 60 * 60 * 1000;
+    const estimatedTime = direction.value === 'consensusToEVM' ? '~10 min' : '~1 day';
+    const newTx = {
+      id: Date.now(),  // Simple ID for tracking
+      direction: direction.value,
+      amount: amount.value,
+      status: 'pending',
+      estimatedTime,
+      expectedArrival: new Date(transferTime.getTime() + estimatedTimeMs).toISOString(),
+      timestamp: transferTime
+    };
+    transactions.value.push(newTx);
+    addLog(`Initiating transfer: ${direction.value} ${amount.value} AI3`);
 
     try {
       if (direction.value === 'consensusToEVM') {
@@ -274,28 +285,14 @@ export const useTransferStore = defineStore('transfer', () => {
           addLog('Missing Consensus API or EVM address for transfer');
           ElNotification({
             title: 'Wallets Not Connected',
-            message: 'Please connect both Consensus and EVM wallets to proceed.',
-            type: 'warning',
+            message: 'Please connect both your Consensus and EVM wallets to proceed with the transfer.',
+            type: 'error',
+            duration: 0
           });
+          newTx.status = 'failed';
           return;
         }
         addLog('Creating Consensus to EVM transfer...');
-
-        const amountWei = BigInt(Math.floor(amount.value * Number(10n ** DECIMALS)));
-        const transferTime = new Date();
-        const estimatedTimeMs = 10 * 60 * 1000;
-        const newTx = {
-          id: Date.now(),
-          direction: direction.value,
-          amount: amount.value,
-          status: 'pending',
-          estimatedTime: '~10 min',
-          expectedArrival: new Date(transferTime.getTime() + estimatedTimeMs).toISOString(),
-          timestamp: transferTime
-        };
-        transactions.value.push(newTx);
-        addLog(`Initiating transfer: ${direction.value} ${amount.value} AI3`);
-
         isTransferring.value = true;
         currentStatus.value = 'pending';
         currentPendingHash.value = null; // Reset
@@ -308,28 +305,24 @@ export const useTransferStore = defineStore('transfer', () => {
         );
 
         newTx.hash = hash;
-        newTx.unsubscribe = unsubscribe;  // Track for cleanup if needed
+        newTx.unsubscribe = unsubscribe; // Track for cleanup if needed
         currentPendingHash.value = hash;
         addLog('Consensus transfer delegated and initiated');
       } else {
+        newTx.status = 'manual instructions provided';
         addLog('Manual instructions for EVM to Consensus provided');
-        ElMessageBox.alert(
-          `
-          <p>EVM → Consensus transfers are not yet automated in this app. Please follow these manual steps:</p>
-          <ol style="padding-left: 20px;">
-            <li>Go to <a href="https://polkadot.js.org/apps/?rpc=${EVM_WS_RPC}#/extrinsics" target="_blank" rel="noopener noreferrer">Polkadot.js Apps (Auto-EVM)</a>.</li>
-            <li>Select your EVM-derived account.</li>
-            <li>Choose the extrinsic: <strong>transporter.transfer()</strong></li>
-            <li>Set <code>dstLocation.chainId</code> to <strong>Consensus</strong>.</li>
-            <li>Enter your Consensus address: <code>${consensusAddressExposed.value}</code></li>
-            <li>Enter the amount: <code>${amountWei.toString()}</code> (in Shannons)</li>
-            <li>Submit the transaction and wait ~1 day for finality.</li>
-          </ol>`,
-          'Manual Transfer Required', { dangerouslyUseHTMLString: true, confirmButtonText: 'OK' });
+        ElNotification({
+          title: 'Manual Transfer Required for EVM → Consensus',
+          dangerouslyUseHTMLString: true,
+          message: 'This transfer requires signing a Substrate extrinsic on Auto-EVM.<br/><br/><strong>Steps:</strong><br/>1. Go to <a href="https://polkadot.js.org/apps/?rpc=' + EVM_WS_RPC + '#/extrinsics" target="_blank" rel="noopener noreferrer">polkadot.js.org/apps/</a><br/>2. Select your EVM-derived account.<br/>3. Choose <strong>transporter.transfer()</strong><br/>4. Set <i>dstLocation.chainId</i> = <strong>Consensus</strong><br/>5. Enter consensus address: <strong>' + consensusAddressExposed.value + '</strong><br/>6. Amount: <strong>' + amountWei.toString() + '</strong> (Shannons)<br/>7. Submit & wait ~1 day.',
+          type: 'info',
+          duration: 0,
+          position: 'top-left'
+        });
         isTransferring.value = false;
       }
     } catch (error) {
-
+      newTx.status = 'failed';
       isTransferring.value = false;
       currentStatus.value = '';
       currentPendingHash.value = null;
@@ -341,22 +334,24 @@ export const useTransferStore = defineStore('transfer', () => {
         clearInterval(pollInterval.value);
         pollInterval.value = null;
       }
+      if (newTx.unsubscribe) {
+        newTx.unsubscribe();  // Cleanup if initiated
+      }
       addLog(`Transfer failed: ${error.message}`);
       console.error('Transfer failed:', error);
       ElNotification({
-        title: 'Transfer Failed',
-        message: `Initiation failed: ${error.message}. Please check your balance and try again.`,
+        title: 'Transfer Initiation Failed',
+        message: `${error.message}. Please ensure both wallets are connected, you have sufficient balance, and try again.`,
         type: 'error',
-        duration: 0,
+        duration: 0
       });
     }
   };
 
   // Expose unified transactions (both wallets)
-  const allFetchedTransactions = computed(() => {
-    // Combine local pending/in-flight transactions with fetched history
-    return [...transactions.value, ...substrate.fetchedTransactions.value];
-  });
+  const allFetchedTransactions = computed(() => [
+    ...substrate.fetchedTransactions.value,
+  ].sort((a, b) => new Date(b.timestamp || b.blockNumber) - new Date(a.timestamp || a.blockNumber)));
 
   // Init APIs & initial fetches if addresses loaded
   substrate.initReadOnlyApi();
@@ -384,11 +379,6 @@ export const useTransferStore = defineStore('transfer', () => {
     }
   };
 
-  const clearLogs = () => {
-    logs.value.length = 0; // Clear array without breaking reactivity
-    addLog('Logs cleared.');
-  };
-
   return {
     // UI State/Actions
     logs,
@@ -397,7 +387,6 @@ export const useTransferStore = defineStore('transfer', () => {
     isTransferring,
     transactions,
     addLog,
-    clearLogs,
     setAmount,
     // Computed
     consensusConnected,

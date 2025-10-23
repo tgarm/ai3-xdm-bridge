@@ -1,6 +1,7 @@
 // src/composables/useSubstrateWallet.js (Fixed with markRaw + dynamic SDK import)
 import { ref, markRaw } from 'vue'; // ADDED: markRaw to skip reactivity on ApiPromise
 import { web3Accounts, web3Enable, web3FromAddress } from '@polkadot/extension-dapp';
+import { ElNotification } from 'element-plus';
 import { ApiPromise, WsProvider } from '@polkadot/api';
 import { decodeAddress, encodeAddress } from '@polkadot/util-crypto';
 // REMOVED: Static import of transferToDomainAccount20Type (revert to dynamic)
@@ -351,8 +352,13 @@ export function useSubstrateWallet(addLog) {
             await web3Enable('ai3-transfer-app');
             const allAccounts = await web3Accounts();
             if (allAccounts.length === 0) {
-                alert('No Consensus accounts found.\n\nPlease install and unlock SubWallet or Talisman extension, then refresh and try again.');
                 addLog('No accounts found in extension');
+                ElNotification({
+                    title: 'No Consensus Accounts Found',
+                    message: 'Please install and unlock a Substrate wallet extension (like SubWallet or Talisman), then refresh and try again.',
+                    type: 'warning',
+                    duration: 0,
+                });
                 return;
             }
             consensusAccount.value = allAccounts[0];
@@ -378,7 +384,12 @@ export function useSubstrateWallet(addLog) {
         } catch (error) {
             console.error('Consensus connection failed:', error);
             addLog(`Consensus connection failed: ${error.message}`);
-            alert(`Consensus wallet connection failed: ${error.message}\n\nPlease ensure the extension is installed, unlocked, and has accounts, then try again.`);
+            ElNotification({
+                title: 'Consensus Wallet Connection Failed',
+                message: `Connection failed: ${error.message}. Please ensure the extension is installed, unlocked, and has accounts, then try again.`,
+                type: 'error',
+                duration: 0,
+            });
         }
     };
 
