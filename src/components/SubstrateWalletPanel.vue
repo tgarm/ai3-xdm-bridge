@@ -4,6 +4,13 @@
     <template #header>
       <div class="card-header">
         <span>Consensus Chain</span>
+        <el-button
+          v-if="store.consensusConnected"
+          @click="store.disconnectConsensus"
+          type="danger"
+          :icon="CircleClose"
+          circle text
+        />
       </div>
     </template>
     <el-button @click="handleButtonClick" :loading="isConnecting" :type="store.consensusConnected ? 'success' : 'primary'" style="width: 100%; justify-content: flex-start;">
@@ -28,6 +35,7 @@
 <script setup>
 import { useTransferStore } from '@/stores/transferStore';
 import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue';
+import { CircleClose } from '@element-plus/icons-vue';
 
 const store = useTransferStore();
 const isConnecting = ref(false);

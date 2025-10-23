@@ -75,6 +75,16 @@ export function useEvmWallet(addLog) {
     }
   };
 
+  const disconnect = () => {
+    evmProvider.value = null; // The provider itself can be re-initialized later
+    evmAddress.value = '';
+    evmBalance.value = '0';
+    localStorage.removeItem('evmAddress');
+    localStorage.removeItem('evmBalance');
+    addLog('EVM wallet disconnected and state cleared.');
+    initProvider(); // Re-initialize read-only provider
+  };
+
   return {
     evmProvider,
     evmAddress,
@@ -83,5 +93,6 @@ export function useEvmWallet(addLog) {
     initProvider,
     updateBalance,
     connect,
+    disconnect,
   };
 }

@@ -70,6 +70,12 @@ export const useTransferStore = defineStore('transfer', () => {
   // Connect EVM
   const connectEVM = () => evm.connect();
 
+  // Disconnect Consensus
+  const disconnectConsensus = () => substrate.disconnect();
+
+  // Disconnect EVM
+  const disconnectEVM = () => evm.disconnect();
+
   // setAmount (defined here with access to sourceBalance)
   const setAmount = (percent) => {
     const newAmount = sourceBalance.value * (percent / 100);
@@ -400,6 +406,8 @@ export const useTransferStore = defineStore('transfer', () => {
     fetchTransactions,
     connectConsensus,
     connectEVM,
+    disconnectConsensus,
+    disconnectEVM,
     performTransfer,
     stopPolling,  // Expose for cleanup if needed
     minTransferAmount: MIN_TRANSFER_AMOUNT,

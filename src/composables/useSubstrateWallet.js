@@ -393,6 +393,17 @@ export function useSubstrateWallet(addLog) {
         }
     };
 
+    const disconnect = async () => {
+        await disconnectApis();
+        consensusAccount.value = null;
+        consensusBalance.value = 0;
+        consensusAddress.value = '';
+        fetchedTransactions.value = [];
+        // Note: We don't clear localStorage as consensus address isn't stored there.
+        addLog('Consensus wallet disconnected and state cleared.');
+    };
+
+
     return {
         // State
         consensusApi,
@@ -408,6 +419,7 @@ export function useSubstrateWallet(addLog) {
         fetchTransactions,
         initReadOnlyApi,
         disconnectApis,
+        disconnect,
         performConsensusTransfer,
     };
 }
