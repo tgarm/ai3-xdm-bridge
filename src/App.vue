@@ -1,6 +1,6 @@
 <!-- src/App.vue -->
 <template>
-  <Analytics />
+  <Analytics mode="auto" />
   <el-config-provider :locale="elLocale">
   <el-container class="app-container">
     <el-header class="header">
