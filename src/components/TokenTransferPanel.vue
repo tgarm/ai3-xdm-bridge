@@ -26,7 +26,7 @@
     <el-button
       type="primary"
       @click="store.performTransfer"
-      :disabled="!canTransfer"
+      :disabled="!store.canTransfer"
       :loading="store.isTransferring"
       style="width: 100%; margin-top: 15px;"
     >
@@ -36,21 +36,10 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
 import { useTransferStore } from '@/stores/transferStore';
 import { useI18n } from 'vue-i18n';
 
 const store = useTransferStore();
 const { t } = useI18n();
 
-/**
- * Determines if a transfer can be performed.
- * NOTE: This logic is better placed inside the transferStore as a computed property.
- */
-const canTransfer = computed(() => {
-  if (!store.canTransfer) return false; // Respect original logic from the store
-  if (store.amount === null || store.amount === undefined) return false;
-  // The store's `setAmount` likely handles the balance check, but this makes it explicit.
-  return store.amount >= store.minTransferAmount && store.amount <= store.balance;
-});
 </script>

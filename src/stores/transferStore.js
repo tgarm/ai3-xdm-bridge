@@ -38,11 +38,13 @@ export const useTransferStore = defineStore('transfer', () => {
       : (evm.evmBalance?.value ? parseFloat(evm.evmBalance.value) : 0);
   });
   const canTransfer = computed(() => {
-    const validAmount = amount.value >= MIN_TRANSFER_AMOUNT;
+    if(amount.value<MIN_TRANSFER_AMOUNT) return false;
+    if(amount.value>=sourceBalance.value) return false;
     if (direction.value === 'consensusToEVM') {
-      return consensusConnected.value && evmConnected.value && validAmount && !isTransferring.value;
+      return consensusConnected.value && evmConnected.value && !isTransferring.value;
     } else {
-      return evmConnected.value && consensusConnected.value && validAmount;
+      // TODO: the EVM amount is not actually the domain 0 amount, perhaps pre-transfer is needed
+      return consensusConnected.value;
     }
   });
 
