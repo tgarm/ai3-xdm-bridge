@@ -3,9 +3,9 @@
   <el-card class="transaction-history-panel">
     <template #header>
       <div class="card-header">
-        <span>Transaction History</span>
+        <span>{{ t('history.title') }}</span>
         <el-button @click="refreshHistory" :loading="isLoading" text>
-          Refresh
+          {{ t('history.refresh') }}
         </el-button>
       </div>
     </template>
@@ -18,7 +18,7 @@
           <el-skeleton-item variant="p" style="width: 70%; margin: 16px" />
         </template>
         <template #default>
-          <el-empty v-if="!uniqueTransactions || uniqueTransactions.length === 0" description="No transactions yet. Your activity will appear here."></el-empty>
+          <el-empty v-if="!uniqueTransactions || uniqueTransactions.length === 0" :description="t('history.empty')"></el-empty>
           <el-timeline v-else style="padding: 0 10px 0 0;">
             <el-timeline-item
               v-for="(tx, index) in uniqueTransactions"
@@ -30,25 +30,25 @@
             >
               <el-card>
                 <p class="status-line">
-                  <span v-if="tx.direction" class="direction">Direction: {{ tx.direction.replace('To', ' → ').replace('From', ' ← ') }}</span>
+                  <span v-if="tx.direction" class="direction">{{ t('history.direction') }}: {{ tx.direction.replace('To', ' → ').replace('From', ' ← ') }}</span>
                   <span>
-                    Status:
+                    {{ t('history.status') }}:
                     <el-tag :type="getTxType(tx)" size="small" effect="light">{{ getStatusText(tx) }}</el-tag>
                   </span>
                 </p>
-                <p v-if="tx.amount">Amount: <strong>{{ tx.amount }} AI3</strong></p>
+                <p v-if="tx.amount">{{ t('history.amount') }}: <strong>{{ tx.amount }} AI3</strong></p>
                 <p v-if="tx.hash">
-                  Hash:
+                  {{ t('history.hash') }}:
                   <el-link v-if="isC2E(tx)" :href="getSubscanUrl(tx.hash)" type="primary" target="_blank">{{ formatHash(tx.hash) }}</el-link>
                   <span v-else>{{ formatHash(tx.hash) }}</span>
                 </p>
                 <p v-if="tx.destination || tx.to">
-                  To:
+                  {{ t('history.to') }}:
                   <el-link v-if="isC2E(tx)" :href="getAutoEvmUrl(tx.destination || tx.to)" type="primary" target="_blank">{{ formatAddress(tx.destination || tx.to) }}</el-link>
                   <span v-else>{{ formatAddress(tx.destination || tx.to) }}</span>
                 </p>
-                <p v-if="tx.blockNumber">Block: {{ tx.blockNumber }}</p>
-                <el-alert v-if="showCountdown(tx)" :title="`Estimated EVM arrival: ${formatRemainingTime(getRemainingTime(tx))}`" type="info" :closable="false" show-icon />
+                <p v-if="tx.blockNumber">{{ t('history.block') }}: {{ tx.blockNumber }}</p>
+                <el-alert v-if="showCountdown(tx)" :title="t('history.estimatedArrival', { 0: formatRemainingTime(getRemainingTime(tx)) })" type="info" :closable="false" show-icon />
               </el-card>
             </el-timeline-item>
           </el-timeline>
@@ -60,10 +60,12 @@
 
 <script setup>
 import { useTransferStore } from '@/stores/transferStore';
+import { useI18n } from 'vue-i18n';
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 
 const store = useTransferStore();
 const isLoading = ref(false);
+const { t } = useI18n();
 const now = ref(Date.now());
 
 const allFetchedTransactions = computed(() => store.allFetchedTransactions || []);
@@ -183,16 +185,16 @@ const getTxHollow = (tx) => {
 };
 
 const getStatusText = (tx) => {
-  if (tx.success === true) return 'Success';
-  if (tx.success === false) return 'Failed';
+  if (tx.success === true) return t('history.statusValues.Success');
+  if (tx.success === false) return t('history.statusValues.Failed');
   if (tx.status) {
     // Capitalize first letter for display
     return tx.status.charAt(0).toUpperCase() + tx.status.slice(1);
   }
   if (isC2E(tx)) {
-    return 'Pending';
+    return t('history.statusValues.Pending');
   }
-  return 'Unknown';
+  return t('history.statusValues.Unknown');
 };
 
 onMounted(() => {

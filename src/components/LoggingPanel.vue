@@ -3,8 +3,8 @@
   <el-card>
     <template #header>
       <div class="card-header">
-        <span>Logs</span>
-        <el-button type="danger" @click="store.clearLogs" text bg>Clear</el-button>
+        <span>{{ t('logging.logs') }}</span>
+        <el-button type="danger" @click="store.clearLogs" text bg>{{ t('logging.clear') }}</el-button>
       </div>
     </template>
     <el-scrollbar height="180px" class="logs-container">
@@ -18,8 +18,10 @@
 
 <script setup>
 import { useTransferStore } from '@/stores/transferStore';
+import { useI18n } from 'vue-i18n';
 
 const store = useTransferStore();
+const { t } = useI18n();
 </script>
 
 <style scoped>

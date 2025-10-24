@@ -1,0 +1,58 @@
+{
+  "app": {
+    "title": "Transferencia Interdominio AI3"
+  },
+  "notifications": {
+    "success": "Éxito",
+    "error": "Error",
+    "addressCopied": "¡Dirección copiada al portapapeles!",
+    "addressCopyFailed": "Error al copiar la dirección."
+  },
+  "wallet": {
+    "evmChain": "Cadena EVM",
+    "consensusChain": "Cadena de Consenso",
+    "reconnect": "Reconectar",
+    "connectMetamask": "Conectar MetaMask",
+    "connectSubwallet": "Conectar SubWallet/Talisman"
+  },
+  "logging": {
+    "logs": "Registros",
+    "clear": "Limpiar"
+  },
+  "docs": {
+    "title": "Documentación",
+    "c2eTitle": "Transferencias Consenso → EVM",
+    "c2eBody": "Gestionado automáticamente a través de la aplicación. Espere 100 tiempos de bloque de consenso (~10 min) para que aparezcan los fondos.",
+    "e2cTitle": "Transferencias EVM → Consenso",
+    "e2cBody": "Las transferencias E2C aún no son compatibles con la aplicación (próximamente). Por ahora, use Polkadot.js Apps siguiendo esta guía: {0}.",
+    "e2cLinkText": "Guía de Auto-EVM a Consenso",
+    "setupTitle": "Notas de Configuración",
+    "setupConsensus": "Consenso: Use SubWallet/Talisman con Autonomys Consensus (RPC: {0}, SS58 {1}).",
+    "setupEvm": "EVM: Agregue Auto-EVM a MetaMask (ID {0} a través de {1}).",
+    "setupMinTransfer": "Transferencia mínima: {0} AI3.",
+    "setupSdkLink": "Esta aplicación está construida usando la {0} y el {1}."
+  },
+  "transfer": {
+    "title": "Consenso → Auto-EVM",
+    "amountPlaceholder": "Cantidad en AI3",
+    "minTransfer": "Transferencia mínima: {0} AI3",
+    "button": "Transferir AI3",
+    "buttonTransferring": "Transfiriendo..."
+  },
+  "history": {
+    "title": "Historial de Transacciones",
+    "refresh": "Actualizar",
+    "empty": "Aún no hay transacciones. Su actividad aparecerá aquí.",
+    "direction": "Dirección",
+    "status": "Estado",
+    "amount": "Cantidad",
+    "hash": "Hash",
+    "to": "A",
+    "block": "Bloque",
+    "estimatedArrival": "Llegada estimada a EVM: {0}",
+    "statusValues": { "Success": "Éxito", "Failed": "Fallido", "Pending": "Pendiente", "Unknown": "Desconocido" }
+  },
+  "languageSwitcher": {
+    "label": "Idioma"
+  }
+}

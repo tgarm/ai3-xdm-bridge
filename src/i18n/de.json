@@ -1,0 +1,58 @@
+{
+  "app": {
+    "title": "AI3 Cross-Domain Transfer"
+  },
+  "notifications": {
+    "success": "Erfolg",
+    "error": "Fehler",
+    "addressCopied": "Adresse in die Zwischenablage kopiert!",
+    "addressCopyFailed": "Adresse konnte nicht kopiert werden."
+  },
+  "wallet": {
+    "evmChain": "EVM-Kette",
+    "consensusChain": "Konsens-Kette",
+    "reconnect": "Erneut verbinden",
+    "connectMetamask": "MetaMask verbinden",
+    "connectSubwallet": "SubWallet/Talisman verbinden"
+  },
+  "logging": {
+    "logs": "Protokolle",
+    "clear": "Löschen"
+  },
+  "docs": {
+    "title": "Dokumentation",
+    "c2eTitle": "Konsens → EVM-Übertragungen",
+    "c2eBody": "Wird automatisch über die App abgewickelt. Warten Sie 100 Konsens-Blockzeiten (~10 Min.), bis das Guthaben erscheint.",
+    "e2cTitle": "EVM → Konsens-Übertragungen",
+    "e2cBody": "E2C-Übertragungen werden in der App noch nicht unterstützt (bald verfügbar). Verwenden Sie vorerst Polkadot.js Apps gemäß dieser Anleitung: {0}.",
+    "e2cLinkText": "Auto-EVM zu Konsens Anleitung",
+    "setupTitle": "Setup-Hinweise",
+    "setupConsensus": "Konsens: Verwenden Sie SubWallet/Talisman mit Autonomys Consensus (RPC: {0}, SS58 {1}).",
+    "setupEvm": "EVM: Fügen Sie Auto-EVM zu MetaMask hinzu (ID {0} über {1}).",
+    "setupMinTransfer": "Mindestübertragung: {0} AI3.",
+    "setupSdkLink": "Diese App wurde mit dem {0} und dem {1} erstellt."
+  },
+  "transfer": {
+    "title": "Konsens → Auto-EVM",
+    "amountPlaceholder": "Betrag in AI3",
+    "minTransfer": "Mindestübertragung: {0} AI3",
+    "button": "AI3 übertragen",
+    "buttonTransferring": "Übertrage..."
+  },
+  "history": {
+    "title": "Transaktionsverlauf",
+    "refresh": "Aktualisieren",
+    "empty": "Noch keine Transaktionen. Ihre Aktivitäten werden hier angezeigt.",
+    "direction": "Richtung",
+    "status": "Status",
+    "amount": "Betrag",
+    "hash": "Hash",
+    "to": "An",
+    "block": "Block",
+    "estimatedArrival": "Voraussichtliche EVM-Ankunft: {0}",
+    "statusValues": { "Success": "Erfolgreich", "Failed": "Fehlgeschlagen", "Pending": "Ausstehend", "Unknown": "Unbekannt" }
+  },
+  "languageSwitcher": {
+    "label": "Sprache"
+  }
+}

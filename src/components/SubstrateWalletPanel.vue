@@ -3,7 +3,7 @@
   <el-card>
     <template #header>
       <div class="card-header">
-        <span>Consensus Chain</span>
+        <span>{{ t('wallet.consensusChain') }}</span>
         <el-button
           v-if="store.consensusConnected"
           @click="store.disconnectConsensus"
@@ -16,7 +16,7 @@
     <el-button @click="handleButtonClick" :loading="isConnecting" :type="store.consensusConnected ? 'success' : 'primary'" style="width: 100%; justify-content: flex-start;">
       <span ref="buttonTextRef" class="button-text">{{ buttonText }}</span>
       <el-tag v-if="hasAddressButNotConnected" type="warning" size="small" effect="light" style="margin-left: auto;">
-        Reconnect
+        {{ t('wallet.reconnect') }}
       </el-tag>
     </el-button>
     <div v-if="store.consensusAddress" class="balance-container">
@@ -34,11 +34,13 @@
 
 <script setup>
 import { useTransferStore } from '@/stores/transferStore';
+import { useI18n } from 'vue-i18n';
 import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue';
 import { CircleClose } from '@element-plus/icons-vue';
 
 const store = useTransferStore();
 const isConnecting = ref(false);
+const { t } = useI18n();
 
 const truncatedAddress = computed(() => {
   if (!store.consensusAddress) return '';
@@ -66,7 +68,7 @@ const checkWidth = () => {
 };
 
 const buttonText = computed(() => {
-  if (!store.consensusAddress) return 'Connect SubWallet/Talisman';
+  if (!store.consensusAddress) return t('wallet.connectSubwallet');
   return useTruncated.value ? truncatedAddress.value : store.consensusAddress;
 });
 
@@ -95,10 +97,10 @@ const handleButtonClick = async () => {
   } else if (store.consensusAddress) { // If connected, the action is to copy the address.
     try {
       await navigator.clipboard.writeText(store.consensusAddress);
-      ElNotification({ title: 'Success', message: 'Address copied to clipboard!', type: 'success', duration: 2000 });
+      ElNotification({ title: t('notifications.success'), message: t('notifications.addressCopied'), type: 'success', duration: 2000 });
     } catch (err) {
       console.error('Failed to copy address:', err);
-      ElNotification({ title: 'Error', message: 'Failed to copy address.', type: 'error' });
+      ElNotification({ title: t('notifications.error'), message: t('notifications.addressCopyFailed'), type: 'error' });
     }
   } else { // If no address, the action is to connect for the first time.
     isConnecting.value = true;

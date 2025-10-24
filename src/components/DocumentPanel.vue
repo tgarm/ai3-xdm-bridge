@@ -3,22 +3,25 @@
   <el-card>
     <template #header>
       <div class="card-header">
-        <span>Documentation</span>
+        <span>{{ t('docs.title') }}</span>
       </div>
     </template>
     <div class="doc-content">
-      <h3>Consensus → EVM Transfers</h3>
-      <p>Handled automatically via the app. Wait 100 consensus block time (~10 min) for funds to appear.</p>
+      <h3>{{ t('docs.c2eTitle') }}</h3>
+      <p>{{ t('docs.c2eBody') }}</p>
       
-      <h3>EVM → Consensus Transfers</h3>
-      <p>E2C transfers are not yet supported in the app (coming soon). For now, use Polkadot.js Apps following this guide: <el-link type="primary" href="https://docs.autonomys.xyz/farming/guides/xdm/#auto-evm-domain-to-consensus-with-polkadotjs" target="_blank">Auto-EVM to Consensus Guide</el-link>.</p>
+      <h3>{{ t('docs.e2cTitle') }}</h3>
+      <p>
+        {{ t('docs.e2cBody', '') }}
+        <el-link type="primary" href="https://docs.autonomys.xyz/farming/guides/xdm/#auto-evm-domain-to-consensus-with-polkadotjs" target="_blank">{{ t('docs.e2cLinkText') }}</el-link>.
+      </p>
       
-      <h3>Setup Notes</h3>
+      <h3>{{ t('docs.setupTitle') }}</h3>
       <ul>
-        <li>Consensus: Use SubWallet/Talisman with Autonomys Consensus (RPC: <code>{{ CONSENSUS_RPC }}</code>, SS58 <code>{{ AUTONOMYS_PREFIX }}</code>).</li>
-        <li>EVM: Add Auto-EVM to MetaMask (ID <code>{{ EVM_CHAIN_ID }}</code> via <el-link type="primary" href="https://chainlist.org/chain/870" target="_blank">Chainlist</el-link>).</li>
-        <li>Minimum transfer: <code>{{ MIN_TRANSFER_AMOUNT }} AI3</code>.</li>
-        <li>This app is built using the <el-link type="primary" href="https://docs.autonomys.xyz/farming/guides/xdm/" target="_blank">XDM Guide</el-link> and <el-link type="primary" href="https://docs.autonomys.xyz/developers/auto-sdk/" target="_blank">Auto-SDK</el-link>.</li>
+        <li v-html="t('docs.setupConsensus', [`<code>${CONSENSUS_RPC}</code>`, `<code>${AUTONOMYS_PREFIX}</code>`])"></li>
+        <li v-html="t('docs.setupEvm', [`<code>${EVM_CHAIN_ID}</code>`, `<a href='https://chainlist.org/chain/870' target='_blank' class='el-link el-link--primary is-underline'><span class='el-link__inner'>Chainlist</span></a>`])"></li>
+        <li v-html="t('docs.setupMinTransfer', [`<code>${MIN_TRANSFER_AMOUNT}</code>`])"></li>
+        <li v-html="t('docs.setupSdkLink', [`<a href='https://docs.autonomys.xyz/farming/guides/xdm/' target='_blank' class='el-link el-link--primary is-underline'><span class='el-link__inner'>XDM Guide</span></a>`, `<a href='https://docs.autonomys.xyz/developers/auto-sdk/' target='_blank' class='el-link el-link--primary is-underline'><span class='el-link__inner'>Auto-SDK</span></a>`])"></li>
       </ul>
     </div>
   </el-card>
@@ -26,6 +29,8 @@
 
 <script setup>
   import { CONSENSUS_RPC, MIN_TRANSFER_AMOUNT, AUTONOMYS_PREFIX, EVM_CHAIN_ID } from '@/constants';
+  import { useI18n } from 'vue-i18n';
+  const { t } = useI18n();
 </script>
 <style scoped>
 .doc-content {

@@ -1,0 +1,58 @@
+{
+  "app": {
+    "title": "AI3 Cross-Domain Transfer"
+  },
+  "notifications": {
+    "success": "Success",
+    "error": "Error",
+    "addressCopied": "Address copied to clipboard!",
+    "addressCopyFailed": "Failed to copy address."
+  },
+  "wallet": {
+    "evmChain": "EVM Chain",
+    "consensusChain": "Consensus Chain",
+    "reconnect": "Reconnect",
+    "connectMetamask": "Connect MetaMask",
+    "connectSubwallet": "Connect SubWallet/Talisman"
+  },
+  "logging": {
+    "logs": "Logs",
+    "clear": "Clear"
+  },
+  "docs": {
+    "title": "Documentation",
+    "c2eTitle": "Consensus → EVM Transfers",
+    "c2eBody": "Handled automatically via the app. Wait 100 consensus block time (~10 min) for funds to appear.",
+    "e2cTitle": "EVM → Consensus Transfers",
+    "e2cBody": "E2C transfers are not yet supported in the app (coming soon). For now, use Polkadot.js Apps following this guide: {0}.",
+    "e2cLinkText": "Auto-EVM to Consensus Guide",
+    "setupTitle": "Setup Notes",
+    "setupConsensus": "Consensus: Use SubWallet/Talisman with Autonomys Consensus (RPC: {0}, SS58 {1}).",
+    "setupEvm": "EVM: Add Auto-EVM to MetaMask (ID {0} via {1}).",
+    "setupMinTransfer": "Minimum transfer: {0} AI3.",
+    "setupSdkLink": "This app is built using the {0} and {1}."
+  },
+  "transfer": {
+    "title": "Consensus → Auto-EVM",
+    "amountPlaceholder": "Amount in AI3",
+    "minTransfer": "Minimum transfer: {0} AI3",
+    "button": "Transfer AI3",
+    "buttonTransferring": "Transferring..."
+  },
+  "history": {
+    "title": "Transaction History",
+    "refresh": "Refresh",
+    "empty": "No transactions yet. Your activity will appear here.",
+    "direction": "Direction",
+    "status": "Status",
+    "amount": "Amount",
+    "hash": "Hash",
+    "to": "To",
+    "block": "Block",
+    "estimatedArrival": "Estimated EVM arrival: {0}",
+    "statusValues": { "Success": "Success", "Failed": "Failed", "Pending": "Pending", "Unknown": "Unknown" }
+  },
+  "languageSwitcher": {
+    "label": "Language"
+  }
+}

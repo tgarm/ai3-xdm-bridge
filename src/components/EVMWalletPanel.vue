@@ -3,7 +3,7 @@
   <el-card>
     <template #header>
       <div class="card-header">
-        <span>EVM Chain</span>
+        <span>{{ t('wallet.evmChain') }}</span>
         <el-button
           v-if="store.evmConnected"
           @click="store.disconnectEVM"
@@ -16,7 +16,7 @@
     <el-button @click="handleButtonClick" :loading="isConnecting" :type="store.evmConnected ? 'success' : 'primary'" style="width: 100%; justify-content: flex-start;">
       <span ref="buttonTextRef" class="button-text">{{ buttonText }}</span>
       <el-tag v-if="hasAddressButNotConnected" type="warning" size="small" effect="light" style="margin-left: auto;">
-        Reconnect
+        {{ t('wallet.reconnect') }}
       </el-tag>
     </el-button>
     <div v-if="store.evmAddress" class="balance-container">
@@ -34,12 +34,14 @@
 
 <script setup>
 import { useTransferStore } from '@/stores/transferStore';
+import { useI18n } from 'vue-i18n';
 import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue';
 import { ElNotification } from 'element-plus';
 import { CircleClose } from '@element-plus/icons-vue';
 
 const store = useTransferStore();
 const isConnecting = ref(false);
+const { t } = useI18n();
 
 const truncatedAddress = computed(() => {
   if (!store.evmAddress) return '';
@@ -64,7 +66,7 @@ const checkWidth = () => {
 };
 
 const buttonText = computed(() => {
-  if (!store.evmAddress) return 'Connect MetaMask';
+  if (!store.evmAddress) return t('wallet.connectMetamask');
   return useTruncated.value ? truncatedAddress.value : store.evmAddress;
 });
 
@@ -90,10 +92,10 @@ const handleButtonClick = async () => {
   } else if (store.evmAddress) {
     try {
       await navigator.clipboard.writeText(store.evmAddress);
-      ElNotification({ title: 'Success', message: 'Address copied to clipboard!', type: 'success', duration: 2000 });
+      ElNotification({ title: t('notifications.success'), message: t('notifications.addressCopied'), type: 'success', duration: 2000 });
     } catch (err) {
       console.error('Failed to copy address:', err);
-      ElNotification({ title: 'Error', message: 'Failed to copy address.', type: 'error' });
+      ElNotification({ title: t('notifications.error'), message: t('notifications.addressCopyFailed'), type: 'error' });
     }
   } else {
     isConnecting.value = true;

@@ -83,6 +83,21 @@ export function useSubstrateWallet(addLog) {
         try {
             addLog('Creating API instance...');
             const provider = new WsProvider(rpcUrl);
+
+            // --- Event-driven connection handling ---
+            // Listen for disconnection events to reset the wallet state globally.
+            provider.on('disconnected', async () => {
+                addLog(`API-WS: disconnected from ${rpcUrl}. Resetting wallet state.`);
+                // This ensures that if the websocket drops for any reason, the UI
+                // reflects the disconnected state, allowing the user to reconnect.
+                await disconnect();
+            });
+
+            provider.on('connected', () => {
+                addLog(`API-WS: successfully connected to ${rpcUrl}.`);
+            });
+            // --- End event handling ---
+
             const apiInstance = await ApiPromise.create({
                 provider,
                 types: {
@@ -132,6 +147,8 @@ export function useSubstrateWallet(addLog) {
             return apiInstance;
         } catch (error) {
             addLog(`Error creating API: ${error.message}`);
+            // If API creation fails (e.g., WebSocket error), reset state
+            await disconnect();
             throw error;
         }
     }
@@ -149,6 +166,7 @@ export function useSubstrateWallet(addLog) {
                 await fetchTransactions();
             } catch (error) {
                 addLog(`Error initializing read-only Consensus API: ${error.message}`);
+                await disconnect(); // Ensure state is cleared on failure
             }
         }
     };
@@ -390,6 +408,7 @@ export function useSubstrateWallet(addLog) {
                 type: 'error',
                 duration: 0,
             });
+            await disconnect(); // Ensure state is cleared on connection failure
         }
     };
 

@@ -1,0 +1,58 @@
+{
+  "app": {
+    "title": "AI3 跨域转账"
+  },
+  "notifications": {
+    "success": "成功",
+    "error": "错误",
+    "addressCopied": "地址已复制到剪贴板！",
+    "addressCopyFailed": "复制地址失败。"
+  },
+  "wallet": {
+    "evmChain": "EVM 链",
+    "consensusChain": "共识链",
+    "reconnect": "重新连接",
+    "connectMetamask": "连接 MetaMask",
+    "connectSubwallet": "连接 SubWallet/Talisman"
+  },
+  "logging": {
+    "logs": "日志",
+    "clear": "清除"
+  },
+  "docs": {
+    "title": "文档",
+    "c2eTitle": "共识 → EVM 转账",
+    "c2eBody": "通过应用自动处理。等待 100 个共识区块时间（约10分钟），资金即可到账。",
+    "e2cTitle": "EVM → 共识 转账",
+    "e2cBody": "应用暂不支持 E2C 转账（即将推出）。目前，请按照本指南使用 Polkadot.js Apps：{0}。",
+    "e2cLinkText": "Auto-EVM 到共识指南",
+    "setupTitle": "设置说明",
+    "setupConsensus": "共识：使用 SubWallet/Talisman 与 Autonomys Consensus (RPC: {0}, SS58 {1})。",
+    "setupEvm": "EVM：将 Auto-EVM 添加到 MetaMask (ID {0} via {1})。",
+    "setupMinTransfer": "最小转账金额：{0} AI3。",
+    "setupSdkLink": "此应用程序是使用 {0} 和 {1} 构建的。"
+  },
+  "transfer": {
+    "title": "共识 → Auto-EVM",
+    "amountPlaceholder": "AI3 数量",
+    "minTransfer": "最小转账金额: {0} AI3",
+    "button": "转账 AI3",
+    "buttonTransferring": "转账中..."
+  },
+  "history": {
+    "title": "交易历史",
+    "refresh": "刷新",
+    "empty": "暂无交易。您的活动将显示在此处。",
+    "direction": "方向",
+    "status": "状态",
+    "amount": "数量",
+    "hash": "哈希",
+    "to": "至",
+    "block": "区块",
+    "estimatedArrival": "预计 EVM 到达时间: {0}",
+    "statusValues": { "Success": "成功", "Failed": "失败", "Pending": "处理中", "Unknown": "未知" }
+  },
+  "languageSwitcher": {
+    "label": "语言"
+  }
+}

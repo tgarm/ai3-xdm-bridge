@@ -1,11 +1,13 @@
 <!-- src/App.vue -->
 <template>
   <Analytics />
+  <el-config-provider :locale="elLocale">
   <el-container class="app-container">
     <el-header class="header">
       <div class="header-content">
         <img src="/logo.svg" alt="AI3-XDM-Bridge Logo" class="logo" />
-        <h1>AI3 Cross-Domain Transfer</h1>
+        <h1>{{ t('app.title') }}</h1>
+        <LanguageSwitcher style="margin-left: auto;" />
       </div>
     </el-header>
     <el-main>
@@ -25,10 +27,12 @@
       </el-row>
     </el-main>
   </el-container>
+  </el-config-provider>
 </template>
 
 <script setup>
-import { onUnmounted, onMounted } from 'vue';
+import { onUnmounted, computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useTransferStore } from '@/stores/transferStore';
 import SubstrateWalletPanel from './components/SubstrateWalletPanel.vue';
 import EVMWalletPanel from './components/EVMWalletPanel.vue';
@@ -36,9 +40,26 @@ import TokenTransferPanel from './components/TokenTransferPanel.vue';
 import LoggingPanel from './components/LoggingPanel.vue';
 import TransactionHistoryPanel from './components/TransactionHistoryPanel.vue';
 import DocumentPanel from './components/DocumentPanel.vue';
+import LanguageSwitcher from './components/LanguageSwitcher.vue';
+
+// Element Plus i18n
+import { ElConfigProvider } from 'element-plus';
+import en from 'element-plus/dist/locale/en.mjs';
+import zhCn from 'element-plus/dist/locale/zh-cn.mjs';
+import es from 'element-plus/dist/locale/es.mjs';
+import de from 'element-plus/dist/locale/de.mjs';
 
 import { Analytics } from '@vercel/analytics/vue';
+
+const { t, locale } = useI18n();
 const store = useTransferStore();
+
+const elLocale = computed(() => {
+  if (locale.value === 'zh') return zhCn;
+  if (locale.value === 'es') return es;
+  if (locale.value === 'de') return de;
+  return en;
+});
 
 onUnmounted(() => {
   store.disconnectApis?.();
@@ -46,6 +67,9 @@ onUnmounted(() => {
 </script>
 
 <style>
+.app-container {
+  min-height: 100vh;
+}
 .header {
   --el-header-padding: 0 20px;
   --el-header-height: 60px;
