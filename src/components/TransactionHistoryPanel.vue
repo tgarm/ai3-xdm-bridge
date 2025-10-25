@@ -48,7 +48,7 @@
                   <span v-else>{{ formatAddress(tx.destination || tx.to) }}</span>
                 </p>
                 <p v-if="tx.blockNumber">{{ t('history.block') }}: {{ tx.blockNumber }}</p>
-                <el-alert v-if="showCountdown(tx)" :title="t('history.estimatedArrival', { 0: formatRemainingTime(getRemainingTime(tx)) })" type="info" :closable="false" show-icon />
+                <el-alert v-if="showCountdown(tx)" :title="t('history.estimatedArrival', [formatRemainingTime(getRemainingTime(tx))])" type="info" :closable="false" show-icon />
               </el-card>
             </el-timeline-item>
           </el-timeline>
