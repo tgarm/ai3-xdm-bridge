@@ -2,7 +2,7 @@
 import { defineStore } from 'pinia';
 import { ElNotification } from 'element-plus';
 import { computed, ref } from 'vue';  // Added ref for pollInterval
-import { MIN_TRANSFER_AMOUNT, EVM_WS_RPC, DECIMALS } from '@/constants';
+import { MIN_TRANSFER_AMOUNT, EVM_RPC, DECIMALS } from '@/constants';
 import { useTransferUi } from '@/composables/useTransferUi';
 import { useSubstrateWallet } from '@/composables/useSubstrateWallet';
 import { useEvmWallet } from '@/composables/useEvmWallet';
@@ -55,6 +55,9 @@ export const useTransferStore = defineStore('transfer', () => {
   const evmAddressExposed = computed(() => evm.evmAddress.value || '');
   const evmBalanceExposed = computed(() => evm.evmBalance.value || '0');
   const evmBalanceLoadingExposed = computed(() => evm.evmBalanceLoading.value);
+  const substrateLinkedEvmAddressExposed = computed(() => substrate.substrateLinkedEvmAddress.value || '');
+  const substrateLinkedEvmBalanceExposed = computed(() => substrate.substrateLinkedEvmBalance.value || '0');
+  const substrateLinkedEvmBalanceLoadingExposed = computed(() => substrate.substrateLinkedEvmBalanceLoading.value);
 
   // Update balances (both wallets restored)
   const updateBalances = async () => {
@@ -322,7 +325,7 @@ export const useTransferStore = defineStore('transfer', () => {
         ElNotification({
           title: 'Manual Transfer Required for EVM → Consensus',
           dangerouslyUseHTMLString: true,
-          message: 'This transfer requires signing a Substrate extrinsic on Auto-EVM.<br/><br/><strong>Steps:</strong><br/>1. Go to <a href="https://polkadot.js.org/apps/?rpc=' + EVM_WS_RPC + '#/extrinsics" target="_blank" rel="noopener noreferrer">polkadot.js.org/apps/</a><br/>2. Select your EVM-derived account.<br/>3. Choose <strong>transporter.transfer()</strong><br/>4. Set <i>dstLocation.chainId</i> = <strong>Consensus</strong><br/>5. Enter consensus address: <strong>' + consensusAddressExposed.value + '</strong><br/>6. Amount: <strong>' + amountWei.toString() + '</strong> (Shannons)<br/>7. Submit & wait ~1 day.',
+          message: 'This transfer requires signing a Substrate extrinsic on Auto-EVM.<br/><br/><strong>Steps:</strong><br/>1. Go to <a href="https://polkadot.js.org/apps/?rpc=' + EVM_RPC + '#/extrinsics" target="_blank" rel="noopener noreferrer">polkadot.js.org/apps/</a><br/>2. Select your EVM-derived account.<br/>3. Choose <strong>transporter.transfer()</strong><br/>4. Set <i>dstLocation.chainId</i> = <strong>Consensus</strong><br/>5. Enter consensus address: <strong>' + consensusAddressExposed.value + '</strong><br/>6. Amount: <strong>' + amountWei.toString() + '</strong> (Shannons)<br/>7. Submit & wait ~1 day.',
           type: 'info',
           duration: 0,
           position: 'top-left'
@@ -420,6 +423,9 @@ export const useTransferStore = defineStore('transfer', () => {
     evmAddress: evmAddressExposed,
     evmBalance: evmBalanceExposed,
     evmBalanceLoading: evmBalanceLoadingExposed,
-    disconnectApis: substrate.disconnectApis
+    disconnectApis: substrate.disconnectApis,
+    substrateLinkedEvmAddress: substrateLinkedEvmAddressExposed,
+    substrateLinkedEvmBalance: substrateLinkedEvmBalanceExposed,
+    substrateLinkedEvmBalanceLoading: substrateLinkedEvmBalanceLoadingExposed,
   };
 });

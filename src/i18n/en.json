@@ -13,7 +13,9 @@
     "consensusChain": "Consensus Chain",
     "reconnect": "Reconnect",
     "connectMetamask": "Connect MetaMask",
-    "connectSubwallet": "Connect SubWallet/Talisman"
+    "connectSubwallet": "Connect SubWallet/Talisman",
+    "linkedEvmAddress": "Linked EVM Address",
+    "copyAddressTooltip": "Click to copy address"
   },
   "logging": {
     "logs": "Logs",

@@ -13,7 +13,9 @@
     "consensusChain": "共识链",
     "reconnect": "重新连接",
     "connectMetamask": "连接 MetaMask",
-    "connectSubwallet": "连接 SubWallet/Talisman"
+    "connectSubwallet": "连接 SubWallet/Talisman",
+    "linkedEvmAddress": "关联的EVM地址",
+    "copyAddressTooltip": "点击复制地址"
   },
   "logging": {
     "logs": "日志",

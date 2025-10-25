@@ -1,5 +1,5 @@
 export const CONSENSUS_RPC = 'wss://rpc.mainnet.autonomys.xyz/ws';
-export const EVM_WS_RPC = 'wss://auto-evm.mainnet.autonomys.xyz/ws';
+export const EVM_RPC = 'wss://auto-evm.mainnet.autonomys.xyz/ws';
 export const DOMAIN_ID = 0;
 export const DECIMALS = 18n;
 export const AUTONOMYS_PREFIX = 6094;

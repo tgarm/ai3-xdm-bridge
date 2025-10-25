@@ -1,6 +1,6 @@
 <!-- src/components/EVMWalletPanel.vue -->
 <template>
-  <el-card>
+  <el-card class="wallet-panel">
     <template #header>
       <div class="card-header">
         <span>{{ t('wallet.evmChain') }}</span>
@@ -14,20 +14,22 @@
       </div>
     </template>
     <el-button @click="handleButtonClick" :loading="isConnecting" :type="store.evmConnected ? 'success' : 'primary'" style="width: 100%; justify-content: flex-start;">
-      <span ref="buttonTextRef" class="button-text">{{ buttonText }}</span>
+      <span class="button-text">{{ buttonText }}</span>
       <el-tag v-if="hasAddressButNotConnected" type="warning" size="small" effect="light" style="margin-left: auto;">
         {{ t('wallet.reconnect') }}
       </el-tag>
     </el-button>
-    <div v-if="store.evmAddress" class="balance-container">
-      <el-skeleton :loading="store.evmBalanceLoading" animated>
-        <template #template>
-          <el-skeleton-item variant="p" style="width: 50%" />
-        </template>
-        <template #default>
-          <p class="balance">{{ store.evmBalance }} AI3</p>
-        </template>
-      </el-skeleton>
+    <div v-if="store.evmAddress" class="balances-wrapper">
+      <div class="balance-container">
+        <el-skeleton :loading="store.evmBalanceLoading" animated>
+          <template #template>
+            <el-skeleton-item variant="p" style="width: 50%" />
+          </template>
+          <template #default>
+            <p class="balance">{{ store.evmBalance }} AI3</p>
+          </template>
+        </el-skeleton>
+      </div>
     </div>
   </el-card>
 </template>
@@ -52,33 +54,23 @@ const hasAddressButNotConnected = computed(() =>
   !!store.evmAddress && !store.evmConnected
 );
 
-const buttonTextRef = ref(null);
-const useTruncated = ref(false);
-let resizeObserver = null;
-
-const checkWidth = () => {
-  if (!buttonTextRef.value || !store.evmAddress) {
-    useTruncated.value = false;
-    return;
-  }
-  buttonTextRef.value.textContent = store.evmAddress;
-  useTruncated.value = buttonTextRef.value.scrollWidth > buttonTextRef.value.clientWidth;
-};
+const isWideScreen = ref(window.innerWidth >= 992);
 
 const buttonText = computed(() => {
   if (!store.evmAddress) return t('wallet.connectMetamask');
-  return useTruncated.value ? truncatedAddress.value : store.evmAddress;
+  return isWideScreen.value ? store.evmAddress : truncatedAddress.value;
 });
 
-watch(() => store.evmAddress, () => {
-  checkWidth();
-});
+const handleResize = () => {
+  isWideScreen.value = window.innerWidth >= 992;
+};
 
 onMounted(() => {
-  if (buttonTextRef.value) {
-    resizeObserver = new ResizeObserver(checkWidth);
-    resizeObserver.observe(buttonTextRef.value);
-  }
+  window.addEventListener('resize', handleResize);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', handleResize);
 });
 
 const handleButtonClick = async () => {
@@ -90,13 +82,13 @@ const handleButtonClick = async () => {
       isConnecting.value = false;
     }
   } else if (store.evmAddress) {
-    try {
-      await navigator.clipboard.writeText(store.evmAddress);
-      ElNotification({ title: t('notifications.success'), message: t('notifications.addressCopied'), type: 'success', duration: 2000 });
-    } catch (err) {
-      console.error('Failed to copy address:', err);
-      ElNotification({ title: t('notifications.error'), message: t('notifications.addressCopyFailed'), type: 'error' });
-    }
+      try {
+        await navigator.clipboard.writeText(store.evmAddress);
+        ElNotification({ title: t('notifications.success'), message: t('notifications.addressCopied'), type: 'success', duration: 2000 });
+      } catch (err) {
+        console.error('Failed to copy address:', err);
+        ElNotification({ title: t('notifications.error'), message: t('notifications.addressCopyFailed'), type: 'error' });
+      }
   } else {
     isConnecting.value = true;
     try {
@@ -107,17 +99,34 @@ const handleButtonClick = async () => {
   }
 };
 
-onBeforeUnmount(() => {
-  if (resizeObserver && buttonTextRef.value) {
-    resizeObserver.unobserve(buttonTextRef.value);
-  }
-});
 </script>
 
 <style scoped>
 /* Styles are identical to SubstrateWalletPanel.vue */
+.wallet-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%; /* Allow card to fill parent's height */
+}
 .card-header { display: flex; justify-content: space-between; align-items: center; }
-.button-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.balance-container { margin-top: 15px; }
+.button-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-grow: 1; }
+.balances-wrapper {
+  margin-top: 15px;
+}
+.balance-container {
+  /* No margin-top needed as wrapper provides it */
+}
 .balance { font-weight: bold; color: #27ae60; margin: 0; }
+
+/* On wide screens, match the layout of the Substrate panel */
+@media (min-width: 992px) {
+  .balances-wrapper {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+  }
+}
+:deep(.el-card__body) {
+  flex-grow: 1;
+}
 </style>
