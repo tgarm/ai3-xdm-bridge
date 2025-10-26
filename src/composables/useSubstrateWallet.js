@@ -11,6 +11,7 @@ import { CONSENSUS_RPC, AUTONOMYS_PREFIX, DECIMALS, SUBSCAN_BASE, DOMAIN_ID, EVM
 export function useSubstrateWallet(addLog) {
     // Substrate State
     const consensusApi = ref(null); // Signed API
+    const evmApi = ref(null); // ADDED: Signed API for the EVM domain
     const readOnlyConsensusApi = ref(null); // Read-only API
     const consensusAccount = ref(null);
     const consensusBalance = ref(0);
@@ -27,6 +28,10 @@ export function useSubstrateWallet(addLog) {
         if (consensusApi.value) {
             await consensusApi.value.disconnect();
             consensusApi.value = null;
+        }
+        if (evmApi.value) { // ADDED: Disconnect evmApi as well
+            await evmApi.value.disconnect();
+            evmApi.value = null;
         }
         if (readOnlyConsensusApi.value) {
             await readOnlyConsensusApi.value.disconnect();
@@ -139,8 +144,10 @@ export function useSubstrateWallet(addLog) {
 
             // Validate chain
             const chain = await apiInstance.rpc.system.chain();
-            const expectedName = 'Autonomys Mainnet';
-            addLog(`Connected to ${chain} (expected: ${expectedName})`);
+            addLog(`Connected to chain: ${chain}`);
+            // This validation is too strict for both chains, so we'll just log it.
+            // const expectedName = 'Autonomys Mainnet';
+            // addLog(`Connected to ${chain} (expected: ${expectedName})`);
 
             // Verify SDK-required types
             if (apiInstance.registry.get('SpDomainsChainId') && apiInstance.registry.get('AccountId20')) {
@@ -370,42 +377,30 @@ export function useSubstrateWallet(addLog) {
 
     // Perform EVM to Consensus transfer
     const performEvmToConsensusTransfer = async (consensusAddress, amountWei, onStatusUpdate) => {
-        if (!evmProvider.value) {
-            throw new Error('EVM provider not available. Ensure Substrate wallet is connected.');
-        }
-        if (!substrateLinkedEvmAddress.value) {
-            throw new Error('No linked EVM address found.');
+        // REFACTORED: Use the persistent evmApi instance
+        if (!evmApi.value) {
+            throw new Error('EVM API not initialized. Ensure the Substrate wallet with a linked EVM address is connected.');
         }
 
         addLog(`=== E2C Transfer Initialization ===`);
-        addLog(`EVM RPC: ${EVM_RPC}`);
         addLog(`Destination Consensus Address: ${consensusAddress}`);
         addLog(`Amount (Wei): ${amountWei}`);
         addLog(`Source EVM Address: ${substrateLinkedEvmAddress.value}`);
+        addLog(`EVM API ready: ${evmApi.value?.isConnected && evmApi.value?.registry?.isReady ? 'yes' : 'no'}`);
+        addLog(`EVM API Signer attached: ${!!evmApi.value?._signer}`);
         addLog(`=================================`);
 
-        let evmApi = null;
         try {
-            // 1. Create a temporary API instance for the EVM domain
-            addLog('Creating temporary API instance for Auto-EVM domain...');
-            evmApi = await createApiInstance(EVM_RPC);
-            addLog('Auto-EVM API instance created.');
-
-            // 2. Get a signer for the linked EVM address
-            const browserProvider = new BrowserProvider(evmProvider.value);
-            const signer = await browserProvider.getSigner(substrateLinkedEvmAddress.value);
-            addLog('EVM signer obtained for linked address.');
-
-            // 3. Dynamically import the SDK function
-            const { transferFromDomainAccount20Type } = await import('@autonomys/auto-xdm');
+            // 1. Dynamically import the SDK function
+            const { transferToConsensus } = await import('@autonomys/auto-xdm');
             addLog('Auto-XDM SDK (transferFromDomain) imported dynamically.');
 
-            // 4. Prepare the transaction
-            const tx = await transferFromDomainAccount20Type(evmApi, CONSENSUS_CHAIN_ID, consensusAddress, amountWei.toString(), signer);
+            // 2. Prepare the transaction using the existing evmApi
+            const tx = await transferToConsensus(evmApi.value, consensusAddress, amountWei.toString());
             const extrinsicHash = tx.hash.toHex();
             addLog('E2C transfer extrinsic prepared via SDK.');
 
-            // 5. Sign and send
+            // 3. Sign and send
             addLog('Sending transaction... (check wallet for signature prompt)');
             const unsubscribe = await tx.signAndSend(substrateLinkedEvmAddress.value, ({ status }) => {
                 const statusMsg = `Transaction status: ${status.type}`;
@@ -419,8 +414,6 @@ export function useSubstrateWallet(addLog) {
             addLog(`E2C SDK transfer failed: ${error.message}`);
             console.error('E2C SDK transfer error:', error);
             throw error;
-        } finally {
-            if (evmApi) await evmApi.disconnect();
         }
     };
 
@@ -445,7 +438,7 @@ export function useSubstrateWallet(addLog) {
     };
 
     // --- ADDED: Local function to get linked EVM address ---
-    const fetchLinkedEvmAddress = async (source, api) => {
+    const fetchLinkedEvmAddress = async (source) => {
         try {
             addLog('Attempting to find linked EVM address...');
             let walletEVMName = '';
@@ -497,6 +490,20 @@ export function useSubstrateWallet(addLog) {
                 substrateLinkedEvmAddress.value = evmAccounts[0];
                 addLog(`Successfully retrieved linked EVM address: ${evmAccounts[0]}`);
                 await getLinkedEvmBalance(evmAccounts[0]); // Fetch balance for the linked address
+
+                // ADDED: Create and configure the persistent evmApi instance
+                addLog('Creating persistent API instance for Auto-EVM domain...');
+                const rawEvmApi = await createApiInstance(EVM_RPC);
+                const AutoXDM = await import('@autonomys/auto-xdm');
+                const browserProvider = new BrowserProvider(evmProviderInfo.provider);
+                const ethersSigner = await browserProvider.getSigner(evmAccounts[0]);
+                const evmSigner = new AutoXDM.EvmSigner(rawEvmApi, evmAccounts[0], ethersSigner);
+                rawEvmApi.setSigner(evmSigner);
+
+                evmApi.value = markRaw(rawEvmApi);
+                addLog('Persistent Auto-EVM API instance created and signer attached.');
+
+
             } else {
                 addLog(`EVM provider for ${walletEVMName} did not return any accounts.`);
             }
@@ -529,15 +536,21 @@ export function useSubstrateWallet(addLog) {
             // Create signed API with custom types (Mainnet)
             const rawApi = await createApiInstance(CONSENSUS_RPC);
             consensusApi.value = markRaw(rawApi); // ADDED: markRaw to prevent Vue reactivity proxy on ApiPromise
-            // Readiness covered by createApiInstance
-
-            await fetchLinkedEvmAddress(consensusAccount.value.meta.source, consensusApi.value);
             // Attach extension signer
             const injector = await web3FromAddress(consensusAccount.value.address);
             if (!injector) {
                 throw new Error('No injector found for address');
             }
             consensusApi.value.setSigner(injector.signer);
+
+            await fetchLinkedEvmAddress(consensusAccount.value.meta.source);
+            const rawEvmApi = await createApiInstance(EVM_RPC);
+            evmApi.value = markRaw(rawEvmApi);
+            const evmInjector = await web3FromAddress(substrateLinkedEvmAddress.value);
+            if (!evmInjector) {
+                throw new Error('No injector found for EVM address');
+            }
+            evmApi.value.setSigner(evmInjector.signer);
 
             await updateBalance();
             addLog('Consensus connection successful');
@@ -561,6 +574,7 @@ export function useSubstrateWallet(addLog) {
         consensusAccount.value = null;
         consensusBalance.value = 0;
         consensusAddress.value = '';
+        evmApi.value = null; // ADDED: Clear evmApi
         substrateLinkedEvmAddress.value = ''; // ADDED: Clear the linked EVM address on disconnect
         substrateLinkedEvmBalance.value = '0'; // ADDED: Clear the linked EVM balance
         substrateLinkedEvmBalanceLoading.value = false;
@@ -574,6 +588,7 @@ export function useSubstrateWallet(addLog) {
     return {
         // State
         consensusApi,
+        evmApi, // EXPOSED: Make the EVM API available
         readOnlyConsensusApi,
         consensusAccount,
         consensusBalance,
@@ -592,5 +607,6 @@ export function useSubstrateWallet(addLog) {
         disconnect,
         performConsensusTransfer,
         performEvmToConsensusTransfer,
+        getLinkedEvmBalance, // EXPOSED: Make the function available
     };
 }
