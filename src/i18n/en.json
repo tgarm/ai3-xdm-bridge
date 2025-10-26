@@ -40,7 +40,8 @@
     "e2cTitle": "Auto-EVM → Consensus",
     "amountPlaceholder": "Amount in AI3",
     "minTransfer": "Minimum transfer: {0} AI3",
-    "button": "Transfer AI3",
+    "button": "Transfer",
+    "prepareFundButton": "Prepare Fund",
     "buttonTransferring": "Transferring..."
   },
   "history": {

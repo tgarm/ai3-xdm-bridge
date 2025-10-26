@@ -39,12 +39,23 @@ export const useTransferStore = defineStore('transfer', () => {
       return substrate.substrateLinkedEvmBalance?.value ? parseFloat(substrate.substrateLinkedEvmBalance.value) : 0;
     }
   });
+
+  const canPrepareFunds = computed(() => {
+    if (direction.value !== 'evmToConsensus' || isTransferring.value) return false;
+    const hasAmount = amount.value >= MIN_TRANSFER_AMOUNT;
+    const linkedHasInsufficient = amount.value > sourceBalance.value;
+    const mainEvmHasSufficient = amount.value <= (evm.evmBalance.value ? parseFloat(evm.evmBalance.value) : 0);
+    return hasAmount && linkedHasInsufficient && mainEvmHasSufficient && evmConnected.value && !!substrate.substrateLinkedEvmAddress.value;
+  });
+
   const canTransfer = computed(() => {
     if(amount.value<MIN_TRANSFER_AMOUNT) return false;
     if(amount.value>=sourceBalance.value) return false;
     if (direction.value === 'consensusToEVM') {
       return consensusConnected.value && evmConnected.value && !isTransferring.value;
     } else {
+      // For E2C, canTransfer is only true if the linked EVM has enough funds.
+      // The canPrepareFunds computed handles the case where the main EVM wallet needs to send funds first.
       return consensusConnected.value && !!substrate.substrateLinkedEvmAddress.value && !isTransferring.value;
     }
   });
@@ -293,6 +304,7 @@ export const useTransferStore = defineStore('transfer', () => {
     const estimatedTime = direction.value === 'consensusToEVM' ? '~10 min' : '~1 day';
     const newTx = {
       id: Date.now(),  // Simple ID for tracking
+      hash: null, // Will be set later
       direction: direction.value,
       amount: amount.value,
       status: 'pending',
@@ -304,6 +316,34 @@ export const useTransferStore = defineStore('transfer', () => {
     addLog(`Initiating transfer: ${direction.value} ${amount.value} AI3`);
 
     try {
+      // Handle the "Prepare Fund" case first
+      if (canPrepareFunds.value) {
+        addLog('Preparing funds: transferring from main EVM wallet to linked EVM address...');
+        isTransferring.value = true;
+        currentStatus.value = 'preparing funds';
+        newTx.direction = 'evmToLinkedEvm'; // Special direction for UI
+        newTx.estimatedTime = '~1 min';
+        newTx.expectedArrival = new Date(transferTime.getTime() + 60 * 1000).toISOString();
+
+        await evm.performEvmTransfer(
+          substrate.substrateLinkedEvmAddress.value,
+          amountWei,
+          ({ type, hash }) => {
+            if (hash) newTx.hash = hash;
+            if (type === 'sent') currentStatus.value = 'sending funds';
+            if (type === 'confirmed') {
+              addLog('Fund preparation complete. Updating linked EVM balance.');
+              newTx.status = 'success';
+              isTransferring.value = false;
+              currentStatus.value = '';
+              // Refresh linked balance to reflect the new funds
+              substrate.getLinkedEvmBalance(substrate.substrateLinkedEvmAddress.value);
+            }
+          }
+        );
+        return; // Stop here, the user can now perform the actual E2C transfer
+      }
+
       if (direction.value === 'consensusToEVM') {
         if (!substrate.consensusApi?.value || !evm.evmAddress.value) {
           addLog('Missing Consensus API or EVM address for transfer');
@@ -420,7 +460,8 @@ export const useTransferStore = defineStore('transfer', () => {
     consensusConnected,
     evmConnected,
     sourceBalance,
-    canTransfer,
+    canTransfer, // The main transfer action
+    canPrepareFunds, // The funding action
     allFetchedTransactions,
     currentStatus,  // New
     // Orchestrated Actions

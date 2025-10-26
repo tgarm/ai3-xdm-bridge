@@ -29,11 +29,16 @@
     <el-button
       type="primary"
       @click="store.performTransfer"
-      :disabled="!store.canTransfer"
+      :disabled="!store.canTransfer && !store.canPrepareFunds"
       :loading="store.isTransferring"
       style="width: 100%; margin-top: 15px;"
     >
-      {{ store.isTransferring ? (store.currentStatus || t('transfer.buttonTransferring')) : t('transfer.button') }}
+      <template v-if="store.isTransferring">
+        {{ store.currentStatus || t('transfer.buttonTransferring') }}
+      </template>
+      <template v-else>
+        {{ store.canPrepareFunds ? t('transfer.prepareFundButton') : t('transfer.button') }}
+      </template>
     </el-button>
   </el-card>
 </template>

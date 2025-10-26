@@ -136,6 +136,31 @@ export function useEvmWallet(addLog) {
     initProvider(); // Re-initialize read-only provider
   };
 
+  // Perform a standard EVM transfer
+  const performEvmTransfer = async (recipient, amountWei, onStatusUpdate) => {
+    if (!evmProvider.value || !evmAddress.value) {
+      throw new Error('EVM wallet not connected or provider not initialized.');
+    }
+
+    try {
+      const signer = await evmProvider.value.getSigner();
+      addLog(`Sending ${ethers.formatUnits(amountWei, DECIMALS)} AI3 from ${evmAddress.value} to ${recipient}...`);
+
+      const tx = await signer.sendTransaction({
+        to: recipient,
+        value: amountWei
+      });
+
+      addLog(`EVM transaction sent. Hash: ${tx.hash}`);
+      onStatusUpdate?.({ type: 'sent', hash: tx.hash });
+
+      await tx.wait(); // Wait for the transaction to be mined
+      addLog(`EVM transaction confirmed: ${tx.hash}`);
+      onStatusUpdate?.({ type: 'confirmed', hash: tx.hash });
+    } catch (error) {
+      throw new Error(`EVM transfer failed: ${error.message}`);
+    }
+  };
   return {
     evmProvider,
     evmAddress,
@@ -145,5 +170,6 @@ export function useEvmWallet(addLog) {
     updateBalance,
     connect,
     disconnect,
+    performEvmTransfer,
   };
 }

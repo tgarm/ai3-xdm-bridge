@@ -40,7 +40,8 @@
     "e2cTitle": "Auto-EVM → 共识",
     "amountPlaceholder": "AI3 数量",
     "minTransfer": "最小转账金额: {0} AI3",
-    "button": "转账 AI3",
+    "button": "转账",
+    "prepareFundButton": "准备资金",
     "buttonTransferring": "转账中..."
   },
   "history": {
