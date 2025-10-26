@@ -9,5 +9,5 @@ export const EVM_CHAIN_NAME = 'Autonomys';
 export const EVM_NATIVE_CURRENCY = { name: 'AI3', symbol: 'AI3', decimals: 18 };
 export const EVM_EXPLORER_URLS = ['https://explorer.auto-evm.mainnet.autonomys.xyz'];
 
-const SUBSCAN_BASE = import.meta.env.DEV ? '/subscan' : 'https://autonomys.api.subscan.io';
+const SUBSCAN_BASE = 'https://autonomys.api.subscan.io';
 export { SUBSCAN_BASE };

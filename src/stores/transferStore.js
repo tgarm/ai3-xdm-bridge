@@ -33,9 +33,11 @@ export const useTransferStore = defineStore('transfer', () => {
   const consensusConnected = computed(() => !!substrate.consensusAccount?.value);
   const evmConnected = computed(() => !!evm.evmAddress.value);
   const sourceBalance = computed(() => {
-    return direction.value === 'consensusToEVM' 
-      ? (substrate.consensusBalance?.value ? parseFloat(substrate.consensusBalance.value) : 0)
-      : (evm.evmBalance?.value ? parseFloat(evm.evmBalance.value) : 0);
+    if (direction.value === 'consensusToEVM') {
+      return substrate.consensusBalance?.value ? parseFloat(substrate.consensusBalance.value) : 0;
+    } else { // evmToConsensus
+      return substrate.substrateLinkedEvmBalance?.value ? parseFloat(substrate.substrateLinkedEvmBalance.value) : 0;
+    }
   });
   const canTransfer = computed(() => {
     if(amount.value<MIN_TRANSFER_AMOUNT) return false;
@@ -43,8 +45,7 @@ export const useTransferStore = defineStore('transfer', () => {
     if (direction.value === 'consensusToEVM') {
       return consensusConnected.value && evmConnected.value && !isTransferring.value;
     } else {
-      // TODO: the EVM amount is not actually the domain 0 amount, perhaps pre-transfer is needed
-      return consensusConnected.value;
+      return consensusConnected.value && !!substrate.substrateLinkedEvmAddress.value && !isTransferring.value;
     }
   });
 
@@ -81,6 +82,11 @@ export const useTransferStore = defineStore('transfer', () => {
   // Disconnect EVM
   const disconnectEVM = () => evm.disconnect();
 
+  // Toggle transfer direction
+  const toggleDirection = () => {
+    direction.value = direction.value === 'consensusToEVM' ? 'evmToConsensus' : 'consensusToEVM';
+    addLog(`Transfer direction switched to: ${direction.value}`);
+  };
   // setAmount (defined here with access to sourceBalance)
   const setAmount = (percent) => {
     const newAmount = sourceBalance.value * (percent / 100);
@@ -140,22 +146,29 @@ export const useTransferStore = defineStore('transfer', () => {
   };
 
   // Status update callback for transfer (updated to start EVM polling on C2E finalization)
-  const handleTransferStatus = ({ status }) => {
+  const handleTransferStatus = async ({ status }) => {
     if (status.type) {
       currentStatus.value = status.type.toLowerCase().replace(/([A-Z])/g, ' $1').trim();
     }
     if (status.isInBlock) {
       addLog(`Transaction ${currentPendingHash.value} in block`);
       const pendingTx = transactions.value.find(tx => tx.hash === currentPendingHash.value);
-      // The hash from signAndSend is the real one. Update our pending tx.
-      const realHash = status.asInBlock.toHex();
-      addLog(`Transaction in block with hash: ${realHash}`);
+
+      // The extrinsic hash can change when it's included in a block.
+      // We need to find the extrinsic in the block to get its final hash.
+      const { block } = await substrate.consensusApi.value.rpc.chain.getBlock(status.asInBlock);
+      const extrinsic = block.extrinsics.find(ex => ex.isSigned && ex.signer.toString() === substrate.consensusAddress.value);
+      const finalHash = extrinsic ? extrinsic.hash.toHex() : currentPendingHash.value; // Fallback to old hash
+
+      addLog(`Transaction in block. Final hash: ${finalHash}`);
 
       if (pendingTx) {
         pendingTx.status = 'in block';
+        pendingTx.hash = finalHash; // Update the hash on our tracked transaction
+        currentPendingHash.value = finalHash; // Update the hash for subsequent polling
       }
-      if (direction.value === 'consensusToEVM' && currentPendingHash.value) {
-        startPollingForTx(currentPendingHash.value);
+      if (direction.value === 'consensusToEVM') {
+        startPollingForTx(finalHash);
       }
     }
     if (status.isFinalized) {
@@ -276,7 +289,7 @@ export const useTransferStore = defineStore('transfer', () => {
     }
     const amountWei = BigInt(Math.floor(amount.value * Number(10n ** DECIMALS)));
     const transferTime = new Date();
-    const estimatedTimeMs = direction.value === 'consensusToEVM' ? 10 * 60 * 1000 : 24 * 60 * 60 * 1000;
+    const estimatedTimeMs = direction.value === 'consensusToEVM' ? 10 * 60 * 1000 : 24 * 60 * 60 * 1000; // E2C is ~1 day
     const estimatedTime = direction.value === 'consensusToEVM' ? '~10 min' : '~1 day';
     const newTx = {
       id: Date.now(),  // Simple ID for tracking
@@ -319,18 +332,22 @@ export const useTransferStore = defineStore('transfer', () => {
         newTx.unsubscribe = unsubscribe; // Track for cleanup if needed
         currentPendingHash.value = hash;
         addLog('Consensus transfer delegated and initiated');
-      } else {
-        newTx.status = 'manual instructions provided';
-        addLog('Manual instructions for EVM to Consensus provided');
-        ElNotification({
-          title: 'Manual Transfer Required for EVM → Consensus',
-          dangerouslyUseHTMLString: true,
-          message: 'This transfer requires signing a Substrate extrinsic on Auto-EVM.<br/><br/><strong>Steps:</strong><br/>1. Go to <a href="https://polkadot.js.org/apps/?rpc=' + EVM_RPC + '#/extrinsics" target="_blank" rel="noopener noreferrer">polkadot.js.org/apps/</a><br/>2. Select your EVM-derived account.<br/>3. Choose <strong>transporter.transfer()</strong><br/>4. Set <i>dstLocation.chainId</i> = <strong>Consensus</strong><br/>5. Enter consensus address: <strong>' + consensusAddressExposed.value + '</strong><br/>6. Amount: <strong>' + amountWei.toString() + '</strong> (Shannons)<br/>7. Submit & wait ~1 day.',
-          type: 'info',
-          duration: 0,
-          position: 'top-left'
-        });
-        isTransferring.value = false;
+      } else { // evmToConsensus
+        addLog('Creating EVM to Consensus transfer...');
+        isTransferring.value = true;
+        currentStatus.value = 'pending';
+        currentPendingHash.value = null; // Reset
+
+        const { unsubscribe, hash } = await substrate.performEvmToConsensusTransfer(
+          substrate.consensusAddress.value,
+          amountWei,
+          handleTransferStatus
+        );
+
+        newTx.hash = hash;
+        newTx.unsubscribe = unsubscribe;
+        currentPendingHash.value = hash;
+        addLog('EVM to Consensus transfer delegated and initiated.');
       }
     } catch (error) {
       newTx.status = 'failed';
@@ -413,6 +430,7 @@ export const useTransferStore = defineStore('transfer', () => {
     connectEVM,
     disconnectConsensus,
     disconnectEVM,
+    toggleDirection,
     performTransfer,
     stopPolling,  // Expose for cleanup if needed
     minTransferAmount: MIN_TRANSFER_AMOUNT,

@@ -36,6 +36,8 @@
   },
   "transfer": {
     "title": "Consenso → Auto-EVM",
+    "c2eTitle": "Consenso → Auto-EVM",
+    "e2cTitle": "Auto-EVM → Consenso",
     "amountPlaceholder": "Cantidad en AI3",
     "minTransfer": "Transferencia mínima: {0} AI3",
     "button": "Transferir AI3",

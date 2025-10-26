@@ -3,7 +3,7 @@ import { ref, markRaw } from 'vue'; // ADDED: markRaw to skip reactivity on ApiP
 import { web3Accounts, web3Enable, web3FromAddress } from '@polkadot/extension-dapp';
 import { ElNotification } from 'element-plus';
 import { ApiPromise, WsProvider } from '@polkadot/api'; // ADDED: ethers for balance
-import { ethers } from 'ethers';
+import { ethers, BrowserProvider } from 'ethers';
 import { decodeAddress, encodeAddress } from '@polkadot/util-crypto';
 // REMOVED: Static import of transferToDomainAccount20Type (revert to dynamic)
 import { CONSENSUS_RPC, AUTONOMYS_PREFIX, DECIMALS, SUBSCAN_BASE, DOMAIN_ID, EVM_RPC } from '@/constants';
@@ -19,6 +19,7 @@ export function useSubstrateWallet(addLog) {
     const substrateLinkedEvmAddress = ref(''); // ADDED: To store the EVM address from the Substrate wallet
     const substrateLinkedEvmBalance = ref('0'); // ADDED: To store the linked EVM address balance
     const substrateLinkedEvmBalanceLoading = ref(false); // ADDED: Loading state for linked EVM balance
+    const evmProvider = ref(null); // To store the EIP-6963 provider
     const fetchedTransactions = ref([]); // Consensus transporter transfers
 
     // Cleanup function (unchanged)
@@ -367,6 +368,62 @@ export function useSubstrateWallet(addLog) {
         }
     };
 
+    // Perform EVM to Consensus transfer
+    const performEvmToConsensusTransfer = async (consensusAddress, amountWei, onStatusUpdate) => {
+        if (!evmProvider.value) {
+            throw new Error('EVM provider not available. Ensure Substrate wallet is connected.');
+        }
+        if (!substrateLinkedEvmAddress.value) {
+            throw new Error('No linked EVM address found.');
+        }
+
+        addLog(`=== E2C Transfer Initialization ===`);
+        addLog(`EVM RPC: ${EVM_RPC}`);
+        addLog(`Destination Consensus Address: ${consensusAddress}`);
+        addLog(`Amount (Wei): ${amountWei}`);
+        addLog(`Source EVM Address: ${substrateLinkedEvmAddress.value}`);
+        addLog(`=================================`);
+
+        let evmApi = null;
+        try {
+            // 1. Create a temporary API instance for the EVM domain
+            addLog('Creating temporary API instance for Auto-EVM domain...');
+            evmApi = await createApiInstance(EVM_RPC);
+            addLog('Auto-EVM API instance created.');
+
+            // 2. Get a signer for the linked EVM address
+            const browserProvider = new BrowserProvider(evmProvider.value);
+            const signer = await browserProvider.getSigner(substrateLinkedEvmAddress.value);
+            addLog('EVM signer obtained for linked address.');
+
+            // 3. Dynamically import the SDK function
+            const { transferFromDomainAccount20Type } = await import('@autonomys/auto-xdm');
+            addLog('Auto-XDM SDK (transferFromDomain) imported dynamically.');
+
+            // 4. Prepare the transaction
+            const tx = await transferFromDomainAccount20Type(evmApi, CONSENSUS_CHAIN_ID, consensusAddress, amountWei.toString(), signer);
+            const extrinsicHash = tx.hash.toHex();
+            addLog('E2C transfer extrinsic prepared via SDK.');
+
+            // 5. Sign and send
+            addLog('Sending transaction... (check wallet for signature prompt)');
+            const unsubscribe = await tx.signAndSend(substrateLinkedEvmAddress.value, ({ status }) => {
+                const statusMsg = `Transaction status: ${status.type}`;
+                addLog(statusMsg);
+                onStatusUpdate?.({ status });
+            });
+
+            addLog('E2C signAndSend initiated.');
+            return { unsubscribe, hash: extrinsicHash };
+        } catch (error) {
+            addLog(`E2C SDK transfer failed: ${error.message}`);
+            console.error('E2C SDK transfer error:', error);
+            throw error;
+        } finally {
+            if (evmApi) await evmApi.disconnect();
+        }
+    };
+
     // --- ADDED: Function to get linked EVM balance ---
     const getLinkedEvmBalance = async (evmAddress) => {
         if (!evmAddress) return;
@@ -423,6 +480,7 @@ export function useSubstrateWallet(addLog) {
 
             if (matchingProviderDetail) {
                 evmProviderInfo = { provider: matchingProviderDetail.provider, name: `EIP-6963: ${matchingProviderDetail.info.name}` };
+                evmProvider.value = matchingProviderDetail.provider; // Store the provider
                 addLog(`Found EVM provider for ${walletEVMName} via EIP-6963.`);
             } else if (walletEVMName === 'Talisman' && window.talismanEth) {
                 evmProviderInfo = { provider: window.talismanEth, name: 'window.talismanEth' };
@@ -506,6 +564,7 @@ export function useSubstrateWallet(addLog) {
         substrateLinkedEvmAddress.value = ''; // ADDED: Clear the linked EVM address on disconnect
         substrateLinkedEvmBalance.value = '0'; // ADDED: Clear the linked EVM balance
         substrateLinkedEvmBalanceLoading.value = false;
+        evmProvider.value = null;
         fetchedTransactions.value = [];
         // Note: We don't clear localStorage as consensus address isn't stored there.
         addLog('Consensus wallet disconnected and state cleared.');
@@ -532,5 +591,6 @@ export function useSubstrateWallet(addLog) {
         disconnectApis,
         disconnect,
         performConsensusTransfer,
+        performEvmToConsensusTransfer,
     };
 }

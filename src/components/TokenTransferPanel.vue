@@ -3,7 +3,10 @@
   <el-card>
     <template #header>
       <div class="card-header">
-        <span>{{ t('transfer.title') }}</span>
+        <el-button link type="primary" @click="store.toggleDirection" class="direction-button">
+          <span>{{ store.direction === 'consensusToEVM' ? t('transfer.c2eTitle') : t('transfer.e2cTitle') }}</span>
+          <el-icon class="el-icon--right"><Switch /></el-icon>
+        </el-button>
       </div>
     </template>
     <el-input-number
@@ -39,7 +42,20 @@
 import { useTransferStore } from '@/stores/transferStore';
 import { useI18n } from 'vue-i18n';
 
+import { Switch } from '@element-plus/icons-vue';
 const store = useTransferStore();
 const { t } = useI18n();
 
 </script>
+
+<style scoped>
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.direction-button {
+  font-size: 16px;
+  font-weight: 500;
+}
+</style>
