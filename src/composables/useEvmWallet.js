@@ -2,7 +2,7 @@
 import { ref, markRaw } from 'vue';
 import { ethers } from 'ethers';
 import { ElNotification } from 'element-plus';
-import { DECIMALS } from '@/constants';
+import { DECIMALS, EVM_CHAIN_ID, EVM_CHAIN_NAME, EVM_NATIVE_CURRENCY, EVM_RPC_HTTPS, EVM_EXPLORER_URLS } from '@/constants';
 
 export function useEvmWallet(addLog) {
   // EVM State
@@ -41,6 +41,53 @@ export function useEvmWallet(addLog) {
     }
   };
 
+  // Helper to ensure correct network is selected
+  const ensureCorrectNetwork = async () => {
+    if (!window.ethereum) return false;
+
+    try {
+      const currentChainId = await window.ethereum.request({ method: 'eth_chainId' });
+      const expectedChainIdHex = '0x' + EVM_CHAIN_ID.toString(16);
+
+      if (currentChainId === expectedChainIdHex) {
+        addLog(`Correct EVM network detected (Chain ID: ${EVM_CHAIN_ID})`);
+        return true;
+      }
+
+      addLog(`Incorrect network detected. Attempting to switch to ${EVM_CHAIN_NAME}...`);
+      try {
+        await window.ethereum.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: expectedChainIdHex }],
+        });
+        addLog(`Successfully switched to ${EVM_CHAIN_NAME}.`);
+        return true;
+      } catch (switchError) {
+        // This error code indicates that the chain has not been added to MetaMask.
+        if (switchError.code === 4902) {
+          addLog(`${EVM_CHAIN_NAME} not found in wallet. Attempting to add it...`);
+          await window.ethereum.request({
+            method: 'wallet_addEthereumChain',
+            params: [{
+              chainId: expectedChainIdHex,
+              chainName: EVM_CHAIN_NAME,
+              nativeCurrency: EVM_NATIVE_CURRENCY,
+              rpcUrls: [EVM_RPC_HTTPS], // Use the dedicated HTTPS RPC URL
+              blockExplorerUrls: EVM_EXPLORER_URLS,
+            }],
+          });
+          addLog(`Successfully added and switched to ${EVM_CHAIN_NAME}.`);
+          return true;
+        }
+        throw switchError; // Rethrow other errors
+      }
+    } catch (error) {
+      addLog(`Network setup failed: ${error.message}`);
+      console.error('Network setup failed:', error);
+      throw new Error(`Failed to switch to or add the ${EVM_CHAIN_NAME} network.`);
+    }
+  };
+
   // Connect EVM wallet
   const connect = async () => {
     if (!window.ethereum) {
@@ -56,6 +103,10 @@ export function useEvmWallet(addLog) {
 
     try {
       addLog('Attempting to connect EVM wallet...');
+      // First, ensure the correct network is active or added
+      await ensureCorrectNetwork();
+
+      // Then, request accounts
       const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
       if (accounts.length > 0) {
         evmAddress.value = accounts[0];
