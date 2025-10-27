@@ -37,7 +37,7 @@
         {{ store.currentStatus || t('transfer.buttonTransferring') }}
       </template>
       <template v-else>
-        {{ store.canPrepareFunds ? t('transfer.prepareFundButton') : t('transfer.button') }}
+        {{ store.canTransfer ? t('transfer.button') :store.canPrepareFunds ? t('transfer.prepareFundButton') : t('transfer.button') }}
       </template>
     </el-button>
   </el-card>
