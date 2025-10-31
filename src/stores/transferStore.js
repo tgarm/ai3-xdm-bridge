@@ -166,21 +166,23 @@ export const useTransferStore = defineStore('transfer', () => {
     if (status.isInBlock) {
       addLog(`Transaction ${currentPendingHash.value} in block`);
       const pendingTx = transactions.value.find(tx => tx.hash === currentPendingHash.value);
+      let finalHash = currentPendingHash.value;
 
-      // The extrinsic hash can change when it's included in a block.
-      // We need to find the extrinsic in the block to get its final hash.
-      const { block } = await substrate.consensusApi.value.rpc.chain.getBlock(status.asInBlock);
-      const extrinsic = block.extrinsics.find(ex => ex.isSigned && ex.signer.toString() === substrate.consensusAddress.value);
-      const finalHash = extrinsic ? extrinsic.hash.toHex() : currentPendingHash.value; // Fallback to old hash
-
-      addLog(`Transaction in block. Final hash: ${finalHash}`);
-
-      if (pendingTx) {
-        pendingTx.status = 'in block';
-        pendingTx.hash = finalHash; // Update the hash on our tracked transaction
-        currentPendingHash.value = finalHash; // Update the hash for subsequent polling
-      }
       if (direction.value === 'consensusToEVM') {
+        // For C2E, the extrinsic hash can change when it's included in a block.
+        // We need to find the extrinsic in the block to get its final hash.
+        const { block } = await substrate.consensusApi.value.rpc.chain.getBlock(status.asInBlock);
+        const extrinsic = block.extrinsics.find(ex => ex.isSigned && ex.signer.toString() === substrate.consensusAddress.value);
+        finalHash = extrinsic ? extrinsic.hash.toHex() : currentPendingHash.value; // Fallback to old hash
+
+        addLog(`Transaction in block. Final hash: ${finalHash}`);
+
+        if (pendingTx) {
+          pendingTx.status = 'in block';
+          pendingTx.hash = finalHash; // Update the hash on our tracked transaction
+          currentPendingHash.value = finalHash; // Update the hash for subsequent polling
+        }
+
         startPollingForTx(finalHash);
       } else if (direction.value === 'evmToConsensus') {
         // For E2C, 'in block' is the final state we can track from the source chain.
