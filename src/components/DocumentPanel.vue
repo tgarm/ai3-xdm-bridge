@@ -12,7 +12,7 @@
       
       <h3>{{ t('docs.e2cTitle') }}</h3>
       <p>
-        {{ t('docs.e2cBody', '') }}
+        {{ t('docs.e2cBody', '') }} <!-- The placeholder is now part of the string -->
         <el-link type="primary" href="https://docs.autonomys.xyz/farming/guides/xdm/#auto-evm-domain-to-consensus-with-polkadotjs" target="_blank">{{ t('docs.e2cLinkText') }}</el-link>.
       </p>
       
