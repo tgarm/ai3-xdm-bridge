@@ -42,7 +42,17 @@
     "minTransfer": "最小转账金额: {0} AI3",
     "button": "转账",
     "prepareFundButton": "准备资金",
-    "buttonTransferring": "转账中..."
+    "buttonTransferring": "转账中...",
+    "e2cWarning": {
+      "title": "初步测试通知",
+      "message": "Auto-EVM 到共识链的转账模式仅用于初步测试。此类转账无法查看交易进度和历史记录。请谨慎操作。",
+      "confirmButton": "我明白"
+    },
+    "e2cInBlock": {
+      "title": "转账已提交",
+      "message": "您的转账已成功提交并被打包进区块。预计在大约 14,400 个区块（约 24 小时）后到达共识链。您现在可以安全地关闭此窗口或开始另一笔转账。",
+      "confirmButton": "好的"
+    }
   },
   "history": {
     "title": "交易历史",

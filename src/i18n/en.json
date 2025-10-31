@@ -42,7 +42,17 @@
     "minTransfer": "Minimum transfer: {0} AI3",
     "button": "Transfer",
     "prepareFundButton": "Prepare Fund",
-    "buttonTransferring": "Transferring..."
+    "buttonTransferring": "Transferring...",
+    "e2cWarning": {
+      "title": "Preliminary Testing Notice",
+      "message": "The Auto-EVM to Consensus transfer mode is for preliminary testing only. Transaction progress and history are not available for this type of transfer. Please proceed with caution.",
+      "confirmButton": "I Understand"
+    },
+    "e2cInBlock": {
+      "title": "Transfer Submitted",
+      "message": "Your transfer has been successfully submitted and included in a block. It is expected to arrive on the Consensus chain after approximately 14,400 blocks (around 24 hours). You can now safely close this window or start another transfer.",
+      "confirmButton": "OK"
+    }
   },
   "history": {
     "title": "Transaction History",

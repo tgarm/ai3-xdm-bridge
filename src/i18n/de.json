@@ -42,7 +42,17 @@
     "minTransfer": "Mindestübertragung: {0} AI3",
     "button": "Übertragen",
     "prepareFundButton": "Guthaben vorbereiten",
-    "buttonTransferring": "Übertrage..."
+    "buttonTransferring": "Übertrage...",
+    "e2cWarning": {
+      "title": "Hinweis zu vorläufigen Tests",
+      "message": "Der Übertragungsmodus von Auto-EVM zu Konsens dient nur zu vorläufigen Tests. Transaktionsfortschritt und -verlauf sind für diese Art von Übertragung nicht verfügbar. Bitte fahren Sie mit Vorsicht fort.",
+      "confirmButton": "Ich verstehe"
+    },
+    "e2cInBlock": {
+      "title": "Übertragung eingereicht",
+      "message": "Ihre Übertragung wurde erfolgreich eingereicht und in einen Block aufgenommen. Es wird erwartet, dass sie nach ungefähr 14.400 Blöcken (ca. 24 Stunden) auf der Konsens-Kette ankommt. Sie können dieses Fenster jetzt sicher schließen oder eine weitere Übertragung starten.",
+      "confirmButton": "OK"
+    }
   },
   "history": {
     "title": "Transaktionsverlauf",

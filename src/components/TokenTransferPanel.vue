@@ -44,13 +44,25 @@
 </template>
 
 <script setup>
+import { watch } from 'vue';
 import { useTransferStore } from '@/stores/transferStore';
 import { useI18n } from 'vue-i18n';
+import { ElMessageBox } from 'element-plus';
 
 import { Switch } from '@element-plus/icons-vue';
 const store = useTransferStore();
 const { t } = useI18n();
 
+// Watch for direction changes to show a warning for E2C transfers
+watch(() => store.direction, (newDirection) => {
+  if (newDirection === 'evmToConsensus') {
+    ElMessageBox.alert(
+      t('transfer.e2cWarning.message'),
+      t('transfer.e2cWarning.title'),
+      { confirmButtonText: t('transfer.e2cWarning.confirmButton') }
+    );
+  }
+});
 </script>
 
 <style scoped>

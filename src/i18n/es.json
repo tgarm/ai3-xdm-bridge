@@ -42,7 +42,17 @@
     "minTransfer": "Transferencia mínima: {0} AI3",
     "button": "Transferir",
     "prepareFundButton": "Preparar Fondos",
-    "buttonTransferring": "Transfiriendo..."
+    "buttonTransferring": "Transfiriendo...",
+    "e2cWarning": {
+      "title": "Aviso de Pruebas Preliminares",
+      "message": "El modo de transferencia de Auto-EVM a Consenso es solo para pruebas preliminares. El progreso y el historial de la transacción no están disponibles para este tipo de transferencia. Proceda con precaución.",
+      "confirmButton": "Entiendo"
+    },
+    "e2cInBlock": {
+      "title": "Transferencia Enviada",
+      "message": "Su transferencia ha sido enviada con éxito e incluida en un bloque. Se espera que llegue a la cadena de Consenso después de aproximadamente 14,400 bloques (alrededor de 24 horas). Ahora puede cerrar esta ventana de forma segura o iniciar otra transferencia.",
+      "confirmButton": "OK"
+    }
   },
   "history": {
     "title": "Historial de Transacciones",

@@ -1,13 +1,15 @@
 // src/stores/transferStore.js (Updated)
 import { defineStore } from 'pinia';
-import { ElNotification } from 'element-plus';
+import { ElNotification, ElMessageBox } from 'element-plus';
 import { computed, ref } from 'vue';  // Added ref for pollInterval
 import { MIN_TRANSFER_AMOUNT, EVM_RPC, DECIMALS } from '@/constants';
 import { useTransferUi } from '@/composables/useTransferUi';
 import { useSubstrateWallet } from '@/composables/useSubstrateWallet';
 import { useEvmWallet } from '@/composables/useEvmWallet';
+import { i18n } from '@/i18n';
 
 export const useTransferStore = defineStore('transfer', () => {
+  const { t } = i18n.global;
   // Poll interval ref (for transfer completion)
   const pollInterval = ref(null);
 
@@ -180,6 +182,23 @@ export const useTransferStore = defineStore('transfer', () => {
       }
       if (direction.value === 'consensusToEVM') {
         startPollingForTx(finalHash);
+      } else if (direction.value === 'evmToConsensus') {
+        // For E2C, 'in block' is the final state we can track from the source chain.
+        addLog('EVM -> Consensus transaction in block. Transfer initiated on source chain.');
+        ElMessageBox.alert(
+          t('transfer.e2cInBlock.message'),
+          t('transfer.e2cInBlock.title'),
+          {
+            confirmButtonText: t('transfer.e2cInBlock.confirmButton'),
+            callback: () => {
+              // Reset state after user confirms
+              isTransferring.value = false;
+              currentStatus.value = '';
+              currentPendingHash.value = null;
+              addLog('E2C UI reset. Ready for new transfer.');
+            }
+          }
+        );
       }
     }
     if (status.isFinalized) {
@@ -387,7 +406,7 @@ export const useTransferStore = defineStore('transfer', () => {
         newTx.hash = hash;
         newTx.unsubscribe = unsubscribe;
         currentPendingHash.value = hash;
-        addLog('EVM to Consensus transfer delegated and initiated.');
+        addLog(`EVM to Consensus transfer delegated and initiated. direction: ${direction.value}`);
       }
     } catch (error) {
       newTx.status = 'failed';
