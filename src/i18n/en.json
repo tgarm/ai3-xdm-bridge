@@ -6,7 +6,9 @@
     "success": "Success",
     "error": "Error",
     "addressCopied": "Address copied to clipboard!",
-    "addressCopyFailed": "Failed to copy address."
+    "addressCopyFailed": "Failed to copy address.",
+    "balancesRefreshed": "Balances refreshed successfully",
+    "balanceRefreshFailed": "Failed to refresh balances"
   },
   "wallet": {
     "evmChain": "EVM Chain",
@@ -15,7 +17,8 @@
     "connectMetamask": "Connect MetaMask",
     "connectSubwallet": "Connect SubWallet/Talisman",
     "linkedEvmAddress": "Linked EVM Address",
-    "copyAddressTooltip": "Click to copy address"
+    "copyAddressTooltip": "Click to copy address",
+    "refreshBalance": "Refresh Balance"
   },
   "logging": {
     "logs": "Logs",

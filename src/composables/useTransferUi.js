@@ -7,7 +7,7 @@ let logCounter = 0;
 export function useTransferUi() {
   // UI State
   const logs = ref([]);
-  const amount = ref(0);
+  const amount = ref('0'); // Store as string to avoid floating-point precision issues
   const direction = ref('consensusToEVM');
   const isTransferring = ref(false);
   const transactions = ref([]); // For pending/manual tracked txs

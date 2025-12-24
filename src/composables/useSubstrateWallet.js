@@ -338,12 +338,12 @@ export function useSubstrateWallet(addLog) {
         addLog(`============================`);
 
         try {
-            // REVERTED: Dynamic import to delay SDK bundling (avoids early registry access)
-            const { transferToDomainAccount20Type } = await import('@autonomys/auto-xdm');
+            // UPDATED: Use transporterTransfer instead of deprecated transferToDomainAccount20Type
+            const { transporterTransfer } = await import('@autonomys/auto-xdm');
             addLog('Auto-XDM SDK imported dynamically');
 
             // Pass markRaw-wrapped api (safe for SDK's registry access)
-            const tx = await transferToDomainAccount20Type(consensusApi.value, DOMAIN_ID, evmAddress, amountWei.toString());
+            const tx = await transporterTransfer(consensusApi.value, { domainId: DOMAIN_ID }, { accountId20: evmAddress }, amountWei.toString());
             const extrinsicHash = tx.hash.toHex();
             addLog('Transfer extrinsic prepared via SDK');
 

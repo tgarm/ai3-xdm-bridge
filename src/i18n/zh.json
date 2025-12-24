@@ -6,7 +6,9 @@
     "success": "成功",
     "error": "错误",
     "addressCopied": "地址已复制到剪贴板！",
-    "addressCopyFailed": "复制地址失败。"
+    "addressCopyFailed": "复制地址失败。",
+    "balancesRefreshed": "余额刷新成功",
+    "balanceRefreshFailed": "刷新余额失败"
   },
   "wallet": {
     "evmChain": "EVM 链",
@@ -15,7 +17,8 @@
     "connectMetamask": "连接 MetaMask",
     "connectSubwallet": "连接 SubWallet/Talisman",
     "linkedEvmAddress": "关联的EVM地址",
-    "copyAddressTooltip": "点击复制地址"
+    "copyAddressTooltip": "点击复制地址",
+    "refreshBalance": "刷新余额"
   },
   "logging": {
     "logs": "日志",

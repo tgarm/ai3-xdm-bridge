@@ -29,6 +29,16 @@
             <p class="balance">{{ store.consensusBalance }} AI3</p>
           </template>
         </el-skeleton>
+        <el-button
+          size="small"
+          type="primary"
+          plain
+          @click="refreshBalances"
+          :loading="refreshingBalances"
+          style="margin-top: 10px;"
+        >
+          {{ t('wallet.refreshBalance') }}
+        </el-button>
       </div>
       <div v-if="store.substrateLinkedEvmAddress" class="linked-evm-container">
         <el-divider class="mobile-only-divider" />
@@ -58,6 +68,7 @@ import { CircleClose } from '@element-plus/icons-vue';
 
 const store = useTransferStore();
 const isConnecting = ref(false);
+const refreshingBalances = ref(false);
 const { t } = useI18n();
 
 const truncatedAddress = computed(() => {
@@ -128,6 +139,19 @@ const handleCopyLinkedEvmAddress = async () => {
   } catch (err) {
     console.error('Failed to copy linked EVM address:', err);
     ElNotification({ title: t('notifications.error'), message: t('notifications.addressCopyFailed'), type: 'error' });
+  }
+};
+
+const refreshBalances = async () => {
+  refreshingBalances.value = true;
+  try {
+    await store.updateBalances();
+    ElNotification({ title: t('notifications.success'), message: t('notifications.balancesRefreshed'), type: 'success', duration: 2000 });
+  } catch (error) {
+    console.error('Balance refresh error:', error);
+    ElNotification({ title: t('notifications.error'), message: t('notifications.balanceRefreshFailed'), type: 'error' });
+  } finally {
+    refreshingBalances.value = false;
   }
 };
 

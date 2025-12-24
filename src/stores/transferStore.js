@@ -16,6 +16,9 @@ export const useTransferStore = defineStore('transfer', () => {
   // Tx polling interval ref
   const pollTxInterval = ref(null);
 
+  // Balance update timeout ref
+  const balanceUpdateTimeout = ref(null);
+
   // Current status for button (new)
   const currentStatus = ref('');
 
@@ -44,15 +47,17 @@ export const useTransferStore = defineStore('transfer', () => {
 
   const canPrepareFunds = computed(() => {
     if (direction.value !== 'evmToConsensus' || isTransferring.value) return false;
-    const hasAmount = amount.value >= MIN_TRANSFER_AMOUNT;
-    const linkedHasInsufficient = amount.value > sourceBalance.value;
-    const mainEvmHasSufficient = amount.value <= (evm.evmBalance.value ? parseFloat(evm.evmBalance.value) : 0);
+    const amountNum = parseFloat(amount.value);
+    const hasAmount = amountNum >= MIN_TRANSFER_AMOUNT;
+    const linkedHasInsufficient = amountNum > sourceBalance.value;
+    const mainEvmHasSufficient = amountNum <= (evm.evmBalance.value ? parseFloat(evm.evmBalance.value) : 0);
     return hasAmount && linkedHasInsufficient && mainEvmHasSufficient && evmConnected.value && !!substrate.substrateLinkedEvmAddress.value;
   });
 
   const canTransfer = computed(() => {
-    if(amount.value<MIN_TRANSFER_AMOUNT) return false;
-    if(amount.value>=sourceBalance.value) return false;
+    const amountNum = parseFloat(amount.value);
+    if(amountNum < MIN_TRANSFER_AMOUNT) return false;
+    if(amountNum > sourceBalance.value) return false;
     if (direction.value === 'consensusToEVM') {
       return consensusConnected.value && evmConnected.value && !isTransferring.value;
     } else {
@@ -76,6 +81,10 @@ export const useTransferStore = defineStore('transfer', () => {
   // Update balances (both wallets restored)
   const updateBalances = async () => {
     await Promise.all([substrate.updateBalance(), evm.updateBalance()]);
+    // Also update linked EVM balance if available
+    if (substrate.substrateLinkedEvmAddress.value) {
+      await substrate.getLinkedEvmBalance(substrate.substrateLinkedEvmAddress.value);
+    }
   };
 
   // Fetch transactions (unified, both restored)
@@ -103,7 +112,8 @@ export const useTransferStore = defineStore('transfer', () => {
   // setAmount (defined here with access to sourceBalance)
   const setAmount = (percent) => {
     const newAmount = sourceBalance.value * (percent / 100);
-    amount.value = newAmount >= MIN_TRANSFER_AMOUNT ? newAmount : 0;
+    const newAmountStr = newAmount >= MIN_TRANSFER_AMOUNT ? newAmount.toString() : '0';
+    amount.value = newAmountStr;
     if (newAmount < MIN_TRANSFER_AMOUNT) {
       addLog(`Amount set to 0 (below minimum ${MIN_TRANSFER_AMOUNT} AI3)`);
     } else {
@@ -214,9 +224,24 @@ export const useTransferStore = defineStore('transfer', () => {
           const arrivalDate = new Date(pendingTx.expectedArrival);
           const timeLeftMs = arrivalDate.getTime() - Date.now();
           const timeLeftMin = Math.max(0, Math.ceil(timeLeftMs / 60000));
-          addLog(`Consensus finalized! Funds expected on EVM in ~${timeLeftMin} minutes. Polling balance...`);
+          addLog(`Consensus finalized! Funds expected on EVM in ~${timeLeftMin} minutes. Scheduling balance update...`);
+
+          // Schedule balance update at expected arrival time
+          if (balanceUpdateTimeout.value) {
+            clearTimeout(balanceUpdateTimeout.value);
+            balanceUpdateTimeout.value = null;
+          }
+          if (timeLeftMs > 0) {
+            balanceUpdateTimeout.value = setTimeout(async () => {
+              addLog('Estimated arrival time reached. Updating linked EVM balance...');
+              if (substrate.substrateLinkedEvmAddress.value) {
+                await substrate.getLinkedEvmBalance(substrate.substrateLinkedEvmAddress.value);
+              }
+              balanceUpdateTimeout.value = null;
+            }, timeLeftMs);
+          }
         }
-        // Start polling EVM balance for ~10 min
+        // Start polling linked EVM balance for ~10 min as backup
         if (pollInterval.value) {
           clearInterval(pollInterval.value);
           pollInterval.value = null;
@@ -224,16 +249,18 @@ export const useTransferStore = defineStore('transfer', () => {
         let pollCount = 0;
         const maxPolls = 20; // ~10 min at 30s intervals
         pollInterval.value = setInterval(async () => {
-          await evm.updateBalance();
-          addLog('Polling EVM balance for arrival...');
+          if (substrate.substrateLinkedEvmAddress.value) {
+            await substrate.getLinkedEvmBalance(substrate.substrateLinkedEvmAddress.value);
+          }
+          addLog('Polling linked EVM balance for arrival...');
           pollCount++;
           if (pollCount >= maxPolls) {
             clearInterval(pollInterval.value);
             pollInterval.value = null;
-            addLog('EVM polling completed (timeout)');
+            addLog('Linked EVM balance polling completed (timeout)');
           }
         }, 30000);
-        addLog('Started EVM balance polling for C2E arrival');
+        addLog('Started linked EVM balance polling for C2E arrival');
       }
       // Stop tx polling if running
       if (pollTxInterval.value) {
@@ -257,6 +284,10 @@ export const useTransferStore = defineStore('transfer', () => {
         clearInterval(pollInterval.value);
         pollInterval.value = null;
       }
+      if (balanceUpdateTimeout.value) {
+        clearTimeout(balanceUpdateTimeout.value);
+        balanceUpdateTimeout.value = null;
+      }
       ElNotification({
         title: 'Transaction Retracted',
         message: 'The transaction was retracted by the network. Please check your wallet and try again.',
@@ -276,6 +307,10 @@ export const useTransferStore = defineStore('transfer', () => {
       if (pollInterval.value) {
         clearInterval(pollInterval.value);
         pollInterval.value = null;
+      }
+      if (balanceUpdateTimeout.value) {
+        clearTimeout(balanceUpdateTimeout.value);
+        balanceUpdateTimeout.value = null;
       }
       ElNotification({
         title: 'Transaction Timeout',
@@ -298,6 +333,10 @@ export const useTransferStore = defineStore('transfer', () => {
         clearInterval(pollInterval.value);
         pollInterval.value = null;
       }
+      if (balanceUpdateTimeout.value) {
+        clearTimeout(balanceUpdateTimeout.value);
+        balanceUpdateTimeout.value = null;
+      }
       ElNotification({
         title: 'Transfer Failed',
         message: `The transaction was ${statusMsg}. Please ensure you have sufficient balance and network connectivity, then try again.`,
@@ -307,9 +346,34 @@ export const useTransferStore = defineStore('transfer', () => {
     }
   };
 
+  // Helper function to convert decimal string to BigInt with proper precision
+  const parseAmountToWei = (amountStr) => {
+    // Remove any commas or spaces
+    const cleanAmount = amountStr.replace(/[,\s]/g, '');
+    // Split by decimal point
+    const parts = cleanAmount.split('.');
+    if (parts.length > 2) {
+      throw new Error('Invalid amount format');
+    }
+    const integerPart = parts[0] || '0';
+    const decimalPart = parts[1] || '';
+
+    // Pad or truncate decimal part to match DECIMALS
+    const paddedDecimal = decimalPart.padEnd(Number(DECIMALS), '0').slice(0, Number(DECIMALS));
+
+    // Combine integer and decimal parts
+    const fullAmountStr = integerPart + paddedDecimal;
+
+    // Remove leading zeros
+    const trimmedAmountStr = fullAmountStr.replace(/^0+/, '') || '0';
+
+    return BigInt(trimmedAmountStr);
+  };
+
   // Perform transfer (orchestrates both, with polling) - substrate logic delegated (updated to set expectedArrival)
   const performTransfer = async () => {
-    if (!amount.value || amount.value < MIN_TRANSFER_AMOUNT) {
+    const amountNum = parseFloat(amount.value);
+    if (!amount.value || amountNum < MIN_TRANSFER_AMOUNT) {
       addLog('Amount below minimum transfer amount');
       ElNotification({
         title: 'Invalid Amount',
@@ -319,7 +383,7 @@ export const useTransferStore = defineStore('transfer', () => {
       });
       return;
     }
-    const amountWei = BigInt(Math.floor(amount.value * Number(10n ** DECIMALS)));
+    const amountWei = parseAmountToWei(amount.value);
     const transferTime = new Date();
     const estimatedTimeMs = direction.value === 'consensusToEVM' ? 10 * 60 * 1000 : 24 * 60 * 60 * 1000; // E2C is ~1 day
     const estimatedTime = direction.value === 'consensusToEVM' ? '~10 min' : '~1 day';
@@ -465,6 +529,10 @@ export const useTransferStore = defineStore('transfer', () => {
     if (pollTxInterval.value) {
       clearInterval(pollTxInterval.value);
       pollTxInterval.value = null;
+    }
+    if (balanceUpdateTimeout.value) {
+      clearTimeout(balanceUpdateTimeout.value);
+      balanceUpdateTimeout.value = null;
     }
   };
 
