@@ -9,14 +9,14 @@
         </el-button>
       </div>
     </template>
-    <el-input-number
-      v-model="store.amount"
-      :precision="18"
-      :step="0.001"
+    <el-input
+      v-model="amountInput"
+      type="number"
       :placeholder="t('transfer.amountPlaceholder')"
       :min="store.minTransferAmount"
-      controls-position="right"
+      step="0.001"
       style="width: 100%; margin-bottom: 10px;"
+      @input="handleAmountInput"
     />
     <el-button-group style="margin-bottom: 10px;">
       <el-button @click="store.setAmount(0)">0%</el-button>
@@ -44,7 +44,7 @@
 </template>
 
 <script setup>
-import { watch } from 'vue';
+import { ref, watch } from 'vue';
 import { useTransferStore } from '@/stores/transferStore';
 import { useI18n } from 'vue-i18n';
 import { ElMessageBox } from 'element-plus';
@@ -52,6 +52,19 @@ import { ElMessageBox } from 'element-plus';
 import { Switch } from '@element-plus/icons-vue';
 const store = useTransferStore();
 const { t } = useI18n();
+
+// Local amount input to preserve precision
+const amountInput = ref(store.amount);
+
+// Handle input changes and update store with string
+const handleAmountInput = (value) => {
+  store.amount = value;
+};
+
+// Watch store amount changes (from setAmount buttons) and update input
+watch(() => store.amount, (newAmount) => {
+  amountInput.value = newAmount;
+});
 
 // Watch for direction changes to show a warning for E2C transfers
 watch(() => store.direction, (newDirection) => {

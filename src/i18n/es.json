@@ -6,7 +6,9 @@
     "success": "Éxito",
     "error": "Error",
     "addressCopied": "¡Dirección copiada al portapapeles!",
-    "addressCopyFailed": "Error al copiar la dirección."
+    "addressCopyFailed": "Error al copiar la dirección.",
+    "balancesRefreshed": "Saldos actualizados exitosamente",
+    "balanceRefreshFailed": "Error al actualizar saldos"
   },
   "wallet": {
     "evmChain": "Cadena EVM",
@@ -15,7 +17,8 @@
     "connectMetamask": "Conectar MetaMask",
     "connectSubwallet": "Conectar SubWallet/Talisman",
     "linkedEvmAddress": "Dirección EVM Vinculada",
-    "copyAddressTooltip": "Haga clic para copiar la dirección"
+    "copyAddressTooltip": "Haga clic para copiar la dirección",
+    "refreshBalance": "Actualizar Saldo"
   },
   "logging": {
     "logs": "Registros",

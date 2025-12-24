@@ -21,15 +21,25 @@
     </el-button>
     <div v-if="store.evmAddress" class="balances-wrapper">
       <div class="balance-container">
-        <el-skeleton :loading="store.evmBalanceLoading" animated>
+        <el-skeleton :loading="displayBalanceLoading" animated>
           <template #template>
             <el-skeleton-item variant="p" style="width: 50%" />
           </template>
           <template #default>
-            <p class="balance">{{ store.evmBalance }} AI3</p>
+            <p class="balance">{{ displayBalance }} AI3</p>
           </template>
         </el-skeleton>
       </div>
+      <el-button
+        size="small"
+        type="primary"
+        plain
+        @click="refreshBalances"
+        :loading="refreshingBalances"
+        style="margin-top: 10px;"
+      >
+        {{ t('wallet.refreshBalance') }}
+      </el-button>
     </div>
   </el-card>
 </template>
@@ -43,6 +53,7 @@ import { CircleClose } from '@element-plus/icons-vue';
 
 const store = useTransferStore();
 const isConnecting = ref(false);
+const refreshingBalances = ref(false);
 const { t } = useI18n();
 
 const truncatedAddress = computed(() => {
@@ -59,6 +70,14 @@ const isWideScreen = ref(window.innerWidth >= 992);
 const buttonText = computed(() => {
   if (!store.evmAddress) return t('wallet.connectMetamask');
   return isWideScreen.value ? store.evmAddress : truncatedAddress.value;
+});
+
+const displayBalance = computed(() => {
+  return store.evmBalance;
+});
+
+const displayBalanceLoading = computed(() => {
+  return store.evmBalanceLoading;
 });
 
 const handleResize = () => {
@@ -96,6 +115,19 @@ const handleButtonClick = async () => {
     } finally {
       isConnecting.value = false;
     }
+  }
+};
+
+const refreshBalances = async () => {
+  refreshingBalances.value = true;
+  try {
+    await store.updateBalances();
+    ElNotification({ title: t('notifications.success'), message: t('notifications.balancesRefreshed'), type: 'success', duration: 2000 });
+  } catch (error) {
+    console.error('Balance refresh error:', error);
+    ElNotification({ title: t('notifications.error'), message: t('notifications.balanceRefreshFailed'), type: 'error' });
+  } finally {
+    refreshingBalances.value = false;
   }
 };
 

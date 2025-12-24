@@ -6,7 +6,9 @@
     "success": "Erfolg",
     "error": "Fehler",
     "addressCopied": "Adresse in die Zwischenablage kopiert!",
-    "addressCopyFailed": "Adresse konnte nicht kopiert werden."
+    "addressCopyFailed": "Adresse konnte nicht kopiert werden.",
+    "balancesRefreshed": "Kontostände erfolgreich aktualisiert",
+    "balanceRefreshFailed": "Aktualisierung der Kontostände fehlgeschlagen"
   },
   "wallet": {
     "evmChain": "EVM-Kette",
@@ -15,7 +17,8 @@
     "connectMetamask": "MetaMask verbinden",
     "connectSubwallet": "SubWallet/Talisman verbinden",
     "linkedEvmAddress": "Verknüpfte EVM-Adresse",
-    "copyAddressTooltip": "Klicken, um die Adresse zu kopieren"
+    "copyAddressTooltip": "Klicken, um die Adresse zu kopieren",
+    "refreshBalance": "Kontostand aktualisieren"
   },
   "logging": {
     "logs": "Protokolle",
