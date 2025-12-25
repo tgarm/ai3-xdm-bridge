@@ -392,11 +392,11 @@ export function useSubstrateWallet(addLog) {
 
         try {
             // 1. Dynamically import the SDK function
-            const { transferToConsensus } = await import('@autonomys/auto-xdm');
-            addLog('Auto-XDM SDK (transferFromDomain) imported dynamically.');
+            const { transporterTransfer } = await import('@autonomys/auto-xdm');
+            addLog('Auto-XDM SDK (transporterTransfer) imported dynamically.');
 
             // 2. Prepare the transaction using the existing evmApi
-            const tx = await transferToConsensus(evmApi.value, consensusAddress, amountWei.toString());
+            const tx = await transporterTransfer(evmApi.value, 'consensus', { accountId32: consensusAddress }, amountWei.toString());
             const extrinsicHash = tx.hash.toHex();
             addLog('E2C transfer extrinsic prepared via SDK.');
 
