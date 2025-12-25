@@ -554,7 +554,6 @@ export function useSubstrateWallet(addLog) {
 
             await updateBalance();
             addLog('Consensus connection successful');
-            fetchTransactions();
 
         } catch (error) {
             console.error('Consensus connection failed:', error);

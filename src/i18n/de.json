@@ -64,6 +64,7 @@
     "direction": "Richtung",
     "status": "Status",
     "amount": "Betrag",
+    "from": "Von",
     "hash": "Hash",
     "to": "An",
     "block": "Block",

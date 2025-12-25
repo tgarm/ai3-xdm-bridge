@@ -64,6 +64,7 @@
     "direction": "Direction",
     "status": "Status",
     "amount": "Amount",
+    "from": "From",
     "hash": "Hash",
     "to": "To",
     "block": "Block",

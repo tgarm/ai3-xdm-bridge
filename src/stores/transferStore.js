@@ -34,6 +34,9 @@ export const useTransferStore = defineStore('transfer', () => {
   // Compose EVM (restored)
   const evm = useEvmWallet(addLog);
 
+  // SDK fetched transactions (domain-to-consensus)
+  const sdkFetchedTransactions = ref([]);
+
   // Computed (cross-wallet)
   const consensusConnected = computed(() => !!substrate.consensusAccount?.value);
   const evmConnected = computed(() => !!evm.evmAddress.value);
@@ -87,13 +90,89 @@ export const useTransferStore = defineStore('transfer', () => {
     }
   };
 
+  // Fetch transactions using SDK (for domain-to-consensus transfers)
+  const fetchSdkTransactions = async () => {
+    const api = substrate.consensusApi?.value || substrate.readOnlyConsensusApi?.value;
+    if (!api) {
+      addLog('No consensus API available for SDK transaction fetching');
+      return;
+    }
+
+    try {
+      addLog('Fetching transfers using SDK (domain-to-consensus)...');
+      const { unconfirmedTransfers: fetchUnconfirmed, cancelledTransfers: fetchCancelled } = await import('@autonomys/auto-xdm');
+
+      const sdkTransactions = [];
+
+      // Fetch unconfirmed transfers from domain to consensus
+      const unconfirmed = await fetchUnconfirmed(api, { domainId: 0 }); // From domain 0 (Auto-EVM)
+      if (unconfirmed && unconfirmed.length > 0) {
+        addLog(`Found ${unconfirmed.length} unconfirmed domain-to-consensus transfers`);
+        unconfirmed.forEach((transfer, index) => {
+          addLog(`Unconfirmed transfer #${index}: from EVM to consensus`);
+
+          // Convert SDK transfer format to our transaction format
+          const tx = {
+            type: 'domain-to-consensus',
+            direction: 'evmToConsensus',
+            status: 'unconfirmed',
+            timestamp: new Date().toISOString(), // SDK doesn't provide timestamp
+            domainId: transfer.from?.domainId || 0,
+            // Note: amount is not reliable from SDK, so we don't include it
+          };
+          sdkTransactions.push(tx);
+        });
+      } else {
+        addLog('No unconfirmed domain-to-consensus transfers found (SDK query)');
+      }
+
+      // Fetch cancelled transfers from domain to consensus
+      const cancelled = await fetchCancelled(api, { domainId: 0 }); // From domain 0 (Auto-EVM)
+      if (cancelled && cancelled.length > 0) {
+        addLog(`Found ${cancelled.length} cancelled domain-to-consensus transfers`);
+        cancelled.forEach((transfer, index) => {
+          addLog(`Cancelled transfer #${index}: from EVM to consensus`);
+
+          // Convert SDK transfer format to our transaction format
+          const tx = {
+            type: 'domain-to-consensus',
+            direction: 'evmToConsensus',
+            status: 'cancelled',
+            timestamp: new Date().toISOString(), // SDK doesn't provide timestamp
+            domainId: transfer.from?.domainId || 0,
+            // Note: amount is not reliable from SDK, so we don't include it
+          };
+          sdkTransactions.push(tx);
+        });
+      } else {
+        addLog('No cancelled domain-to-consensus transfers found (SDK query)');
+      }
+
+      // Update the SDK transactions ref
+      sdkFetchedTransactions.value = sdkTransactions;
+
+      // Note: Domain-to-consensus transfers that are completed would appear as regular transfers
+      // in the consensus chain and should be picked up by the Subscan API in fetchTransactions
+
+    } catch (error) {
+      addLog(`Error fetching SDK transactions: ${error.message}`);
+      console.error('SDK transaction fetch error:', error);
+    }
+  };
+
   // Fetch transactions (unified, both restored)
   const fetchTransactions = async () => {
     await substrate.fetchTransactions();
+    // Also try to fetch domain-to-consensus transfers using SDK
+    await fetchSdkTransactions();
   };
 
   // Connect Consensus
-  const connectConsensus = () => substrate.connect();
+  const connectConsensus = async () => {
+    await substrate.connect();
+    // Fetch both consensus and SDK transactions after connection
+    await fetchTransactions();
+  };
 
   // Connect EVM
   const connectEVM = () => evm.connect();
@@ -501,23 +580,29 @@ export const useTransferStore = defineStore('transfer', () => {
     }
   };
 
-  // Expose unified transactions (both wallets)
+  // Expose unified transactions (both wallets and SDK)
   const allFetchedTransactions = computed(() => [
     ...substrate.fetchedTransactions.value,
+    ...sdkFetchedTransactions.value,
   ].sort((a, b) => new Date(b.timestamp || b.blockNumber) - new Date(a.timestamp || a.blockNumber)));
 
-  // Init APIs & initial fetches if addresses loaded
-  substrate.initReadOnlyApi();
-  evm.initProvider();
+  // Count unconfirmed SDK transactions for notification
+  const unconfirmedSdkTransactionCount = computed(() => {
+    return sdkFetchedTransactions.value.filter(tx => tx.status === 'unconfirmed').length;
+  });
 
-  // Initial fetches after inits (for loaded addresses)
-  const initIfLoaded = async () => {
+  // Init APIs & initial fetches if addresses loaded
+  const initApis = async () => {
+    await substrate.initReadOnlyApi();
+    evm.initProvider();
+
+    // Initial fetches after inits (for loaded addresses)
     if (substrate.consensusAddress.value || evm.evmAddress.value) {
       await updateBalances();
       await fetchTransactions();
     }
   };
-  initIfLoaded();
+  initApis();
 
   // Cleanup on store destroy (optional, for dev)
   // You can call this in a global onUnmounted if needed
@@ -553,6 +638,7 @@ export const useTransferStore = defineStore('transfer', () => {
     canPrepareFunds, // The funding action
     allFetchedTransactions,
     currentStatus,  // New
+    unconfirmedSdkTransactionCount,
     // Orchestrated Actions
     updateBalances,
     fetchTransactions,

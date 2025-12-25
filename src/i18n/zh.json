@@ -64,6 +64,7 @@
     "direction": "方向",
     "status": "状态",
     "amount": "数量",
+    "from": "来自",
     "hash": "哈希",
     "to": "至",
     "block": "区块",

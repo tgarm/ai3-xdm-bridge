@@ -18,8 +18,19 @@
           <el-skeleton-item variant="p" style="width: 70%; margin: 16px" />
         </template>
         <template #default>
-          <el-empty v-if="!uniqueTransactions || uniqueTransactions.length === 0" :description="t('history.empty')"></el-empty>
-          <el-timeline v-else style="padding: 0 10px 0 0;">
+      <el-empty v-if="!uniqueTransactions || uniqueTransactions.length === 0" :description="t('history.empty')"></el-empty>
+
+      <!-- Notification for unconfirmed SDK transactions -->
+      <el-alert
+        v-if="store.unconfirmedSdkTransactionCount > 0"
+        :title="`You have ${store.unconfirmedSdkTransactionCount} unconfirmed EVM to Consensus transfer${store.unconfirmedSdkTransactionCount > 1 ? 's' : ''}`"
+        type="info"
+        :closable="false"
+        show-icon
+        style="margin-bottom: 16px;"
+      ></el-alert>
+
+      <el-timeline v-if="uniqueTransactions && uniqueTransactions.length > 0" style="padding: 0 10px 0 0;">
             <el-timeline-item
               v-for="(tx, index) in uniqueTransactions"
               :key="tx.hash || index"
@@ -37,6 +48,7 @@
                   </span>
                 </p>
                 <p v-if="tx.amount">{{ t('history.amount') }}: <strong>{{ tx.amount }} AI3</strong></p>
+                <p v-if="isDomainToConsensus(tx)">{{ t('history.from') }}: EVM Domain {{ tx.domainId }}</p>
                 <p v-if="tx.hash">
                   {{ t('history.hash') }}:
                   <el-link v-if="isC2E(tx)" :href="getSubscanUrl(tx.hash)" type="primary" target="_blank">{{ formatHash(tx.hash) }}</el-link>
@@ -96,6 +108,8 @@ const refreshHistory = async () => {
 };
 
 const isC2E = (tx) => tx.direction === 'consensusToEVM';
+
+const isDomainToConsensus = (tx) => tx.type === 'domain-to-consensus';
 
 const getExpectedArrival = (tx) => {
   if (tx.expectedArrival) return tx.expectedArrival;
@@ -188,6 +202,9 @@ const getStatusText = (tx) => {
   if (tx.success === true) return t('history.statusValues.Success');
   if (tx.success === false) return t('history.statusValues.Failed');
   if (tx.status) {
+    // Handle SDK transaction statuses
+    if (tx.status === 'unconfirmed') return 'Unconfirmed';
+    if (tx.status === 'cancelled') return 'Cancelled';
     // Capitalize first letter for display
     return tx.status.charAt(0).toUpperCase() + tx.status.slice(1);
   }

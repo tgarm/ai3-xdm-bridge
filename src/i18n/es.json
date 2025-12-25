@@ -64,6 +64,7 @@
     "direction": "Dirección",
     "status": "Estado",
     "amount": "Cantidad",
+    "from": "De",
     "hash": "Hash",
     "to": "A",
     "block": "Bloque",
