@@ -1,6 +1,6 @@
 {
   "name": "ai3-xdm-bridge",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@autonomys/auto-xdm": "^1.6.5",
+    "@element-plus/icons-vue": "^2.3.2",
     "@polkadot/api": "15.10.2",
     "@polkadot/extension-dapp": "0.59.2",
     "@vercel/analytics": "^1.5.0",
