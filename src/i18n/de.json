@@ -8,7 +8,44 @@
     "addressCopied": "Adresse in die Zwischenablage kopiert!",
     "addressCopyFailed": "Adresse konnte nicht kopiert werden.",
     "balancesRefreshed": "Kontostände erfolgreich aktualisiert",
-    "balanceRefreshFailed": "Aktualisierung der Kontostände fehlgeschlagen"
+    "balanceRefreshFailed": "Aktualisierung der Kontostände fehlgeschlagen",
+    "fundsArrived": {
+      "title": "Guthaben angekommen",
+      "message": "Übertragung auf Auto-EVM erhalten: {0} AI3"
+    },
+    "stillBridging": {
+      "title": "Noch in Übertragung",
+      "message": "Im 30-Minuten-Fenster wurde keine Kontostandsänderung festgestellt. XDM-Übertragungen können länger dauern — bitte später über „Kontostand aktualisieren“ oder den Verlauf erneut prüfen."
+    },
+    "inclusionTimeout": {
+      "title": "Transaktion noch nicht auf der Kette sichtbar",
+      "message": "Die Transaktion befindet sich möglicherweise noch im Mempool. Bitte NICHT mit demselben Konto erneut senden (Subspace lehnt doppelte Nonces ab) — später im Verlauf prüfen."
+    },
+    "retracted": {
+      "title": "Transaktion zurückgezogen",
+      "message": "Die Transaktion wurde vom Netzwerk zurückgezogen. Bitte prüfen Sie Ihre Wallet und versuchen Sie es erneut."
+    },
+    "finalityTimeout": {
+      "title": "Transaktions-Timeout",
+      "message": "Die Finalisierung hat zu lange gedauert. Sie kann dennoch finalisiert werden — bitte Transaktionsverlauf prüfen, andernfalls erneut versuchen."
+    },
+    "transferFailed": {
+      "title": "Übertragung fehlgeschlagen",
+      "message": "Die Transaktion wurde {0}. Bitte stellen Sie ausreichendes Guthaben und Netzwerkverbindung sicher und versuchen Sie es erneut."
+    },
+    "invalidAmount": {
+      "title": "Ungültiger Betrag",
+      "message": "Die Mindestübertragung beträgt {0} AI3. Bitte geben Sie einen gültigen Betrag ein."
+    },
+    "walletsNotConnected": {
+      "title": "Wallets nicht verbunden",
+      "message": "Bitte verbinden Sie sowohl Ihre Konsens- als auch Ihre EVM-Wallet, um die Übertragung durchzuführen."
+    },
+    "transferInitFailed": {
+      "title": "Übertragung konnte nicht gestartet werden",
+      "hint": "Bitte stellen Sie sicher, dass beide Wallets verbunden sind und ausreichend Guthaben vorhanden ist, und versuchen Sie es erneut."
+    },
+    "e2cProviderMissing": "Die verknüpfte EVM-Wallet (EVM-Konto von SubWallet/Talisman) ist nicht verfügbar. E2C-Übertragungen werden über das Transporter-Precompile von diesem Konto gesendet."
   },
   "wallet": {
     "evmChain": "EVM-Kette",
@@ -18,7 +55,8 @@
     "connectSubwallet": "SubWallet/Talisman verbinden",
     "linkedEvmAddress": "Verknüpfte EVM-Adresse",
     "copyAddressTooltip": "Klicken, um die Adresse zu kopieren",
-    "refreshBalance": "Kontostand aktualisieren"
+    "refreshBalance": "Kontostand aktualisieren",
+    "selectAccount": "Konto auswählen"
   },
   "logging": {
     "logs": "Protokolle",
@@ -27,9 +65,9 @@
   "docs": {
     "title": "Dokumentation",
     "c2eTitle": "Konsens → EVM-Übertragungen",
-    "c2eBody": "Wird automatisch über die App abgewickelt. Warten Sie 100 Konsens-Blockzeiten (~10 Min.), bis das Guthaben erscheint.",
-    "e2cTitle": "EVM → Konsens-Übertragungen (Vorläufige Tests)",
-    "e2cBody": "Diese Übertragung ist jetzt für vorläufige Tests aktiviert. Beachten Sie, dass Transaktionsfortschritt und -verlauf für diesen Übertragungstyp nicht verfügbar sind. Es wird erwartet, dass das Guthaben nach etwa 14.400 Blöcken (ca. 24 Stunden) auf der Konsens-Kette ankommt. Bitte fahren Sie mit Vorsicht fort. Für manuelle Übertragungen können Sie weiterhin diese Anleitung verwenden: {0}.",
+    "c2eBody": "Wird automatisch über die App abgewickelt. Das Guthaben trifft meist innerhalb von 10–30 Min. ein (im Mainnet gemessen: ca. 25 Min.).",
+    "e2cTitle": "EVM → Konsens-Übertragungen",
+    "e2cBody": "Gesendet über das Transporter-Precompile auf Auto-EVM. Das Guthaben wird nach der ca. 24-stündigen Challenge-Phase auf der Konsens-Kette erwartet. Bitte fahren Sie mit Vorsicht fort. Für manuelle Übertragungen können Sie weiterhin diese Anleitung verwenden: {0}.",
     "e2cLinkText": "Auto-EVM zu Konsens Anleitung",
     "setupTitle": "Setup-Hinweise",
     "setupConsensus": "Konsens: Verwenden Sie SubWallet/Talisman mit Autonomys Consensus (RPC: {0}, SS58 {1}).",
@@ -55,6 +93,13 @@
       "title": "Übertragung eingereicht",
       "message": "Ihre Übertragung wurde erfolgreich eingereicht und in einen Block aufgenommen. Es wird erwartet, dass sie nach ungefähr 14.400 Blöcken (ca. 24 Stunden) auf der Konsens-Kette ankommt. Sie können dieses Fenster jetzt sicher schließen oder eine weitere Übertragung starten.",
       "confirmButton": "OK"
+    },
+    "arrivalNoteC2E": "Ankunft ≈ Betrag × 99,99 % (XDM-Protokollgebühr ca. 0,01 %). Meist 10–30 Minuten, gelegentlich länger.",
+    "arrivalNoteE2C": "Das Guthaben erreicht die Konsens-Kette nach der ca. 24-stündigen Challenge-Phase.",
+    "amountPrecision": "Es sind höchstens 18 Nachkommastellen erlaubt. Bitte passen Sie den Betrag an.",
+    "e2cConfirmed": {
+      "title": "Übertragung auf Auto-EVM bestätigt",
+      "message": "Ihre Übertragung von {0} AI3 an {1} wurde auf Auto-EVM bestätigt. Das Guthaben erreicht die Konsens-Kette nach der ca. 24-stündigen Challenge-Phase. Behalten Sie den Eintrag im Verlauf und markieren Sie ihn als erhalten, sobald das Guthaben angekommen ist."
     }
   },
   "history": {
@@ -68,7 +113,15 @@
     "to": "An",
     "block": "Block",
     "estimatedArrival": "Voraussichtliche EVM-Ankunft: {0}",
-    "statusValues": { "Success": "Erfolgreich", "Failed": "Fehlgeschlagen", "Pending": "Ausstehend", "Unknown": "Unbekannt" }
+    "statusValues": {
+      "Success": "Erfolgreich",
+      "Failed": "Fehlgeschlagen",
+      "Pending": "Ausstehend",
+      "Unknown": "Unbekannt"
+    },
+    "unavailable": "Der Verlaufsdiest (Subscan) ist derzeit nicht erreichbar. Angezeigte Einträge können veraltet sein — bitte später erneut versuchen.",
+    "challengeEnds": "Challenge-Phase endet in: {0}",
+    "markReceived": "Als erhalten markieren"
   },
   "languageSwitcher": {
     "label": "Sprache"

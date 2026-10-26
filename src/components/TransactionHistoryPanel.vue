@@ -18,6 +18,14 @@
           <el-skeleton-item variant="p" style="width: 70%; margin: 16px" />
         </template>
         <template #default>
+          <el-alert
+            v-if="store.historyStatus === 'unavailable'"
+            :title="t('history.unavailable')"
+            type="error"
+            :closable="false"
+            show-icon
+            style="margin: 10px;"
+          />
           <el-empty v-if="!uniqueTransactions || uniqueTransactions.length === 0" :description="t('history.empty')"></el-empty>
           <el-timeline v-else style="padding: 0 10px 0 0;">
             <el-timeline-item
@@ -48,7 +56,23 @@
                   <span v-else>{{ formatAddress(tx.destination || tx.to) }}</span>
                 </p>
                 <p v-if="tx.blockNumber">{{ t('history.block') }}: {{ tx.blockNumber }}</p>
-                <el-alert v-if="showCountdown(tx)" :title="t('history.estimatedArrival', [formatRemainingTime(getRemainingTime(tx))])" type="info" :closable="false" show-icon />
+                <el-alert
+                  v-if="showCountdown(tx)"
+                  :title="isE2C(tx) ? t('history.challengeEnds', [formatRemainingTime(getRemainingTime(tx))]) : t('history.estimatedArrival', [formatRemainingTime(getRemainingTime(tx))])"
+                  type="info"
+                  :closable="false"
+                  show-icon
+                />
+                <el-button
+                  v-if="isE2C(tx) && tx.status === 'bridging'"
+                  size="small"
+                  type="success"
+                  plain
+                  style="margin-top: 8px;"
+                  @click="store.markTransferComplete(tx.id)"
+                >
+                  {{ t('history.markReceived') }}
+                </el-button>
               </el-card>
             </el-timeline-item>
           </el-timeline>
@@ -96,20 +120,24 @@ const refreshHistory = async () => {
 };
 
 const isC2E = (tx) => tx.direction === 'consensusToEVM';
+const isE2C = (tx) => tx.direction === 'evmToConsensus';
 
 const getExpectedArrival = (tx) => {
   if (tx.expectedArrival) return tx.expectedArrival;
   if (isC2E(tx)) {
+    // Fallback for fetched history rows without an explicit window:
+    // 30 min (field-tested arrival is ~25 min; 10 min was too short).
     const txTime = new Date(tx.timestamp).getTime();
     const currentTime = now.value;
-    if (currentTime - txTime < 10 * 60 * 1000) { // Within 10 minutes
-      return new Date(txTime + 10 * 60 * 1000).toISOString();
+    if (currentTime - txTime < 30 * 60 * 1000) {
+      return new Date(txTime + 30 * 60 * 1000).toISOString();
     }
   }
   return null;
 };
 
 const showCountdown = (tx) => {
+  if (isE2C(tx)) return tx.status === 'bridging' && getRemainingTime(tx) > 0;
   if (!isC2E(tx)) return false;
   const expected = getExpectedArrival(tx);
   if (!expected) return false;

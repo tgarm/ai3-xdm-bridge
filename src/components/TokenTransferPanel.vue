@@ -26,6 +26,9 @@
       <el-button @click="store.setAmount(100)">100%</el-button>
     </el-button-group>
     <el-text type="info" size="small" tag="p">{{ t('transfer.minTransfer', [store.minTransferAmount]) }}</el-text>
+    <el-text type="info" size="small" tag="p">
+      {{ store.direction === 'consensusToEVM' ? t('transfer.arrivalNoteC2E') : t('transfer.arrivalNoteE2C') }}
+    </el-text>
     <el-button
       type="primary"
       @click="store.performTransfer"

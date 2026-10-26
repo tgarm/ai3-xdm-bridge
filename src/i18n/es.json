@@ -8,7 +8,44 @@
     "addressCopied": "¡Dirección copiada al portapapeles!",
     "addressCopyFailed": "Error al copiar la dirección.",
     "balancesRefreshed": "Saldos actualizados exitosamente",
-    "balanceRefreshFailed": "Error al actualizar saldos"
+    "balanceRefreshFailed": "Error al actualizar saldos",
+    "fundsArrived": {
+      "title": "Fondos recibidos",
+      "message": "Transferencia recibida en Auto-EVM: {0} AI3"
+    },
+    "stillBridging": {
+      "title": "Aún en tránsito",
+      "message": "No se detectó cambio de saldo en la ventana de 30 minutos. Las transferencias XDM pueden tardar más: use «Actualizar Saldo» o el historial para volver a comprobar."
+    },
+    "inclusionTimeout": {
+      "title": "Transacción aún no visible en la cadena",
+      "message": "La transacción puede seguir esperando en el mempool. NO la reenvíe con la misma cuenta (Subspace rechaza nonces duplicados): revise el historial más tarde."
+    },
+    "retracted": {
+      "title": "Transacción retractada",
+      "message": "La transacción fue retractada por la red. Compruebe su cartera e inténtelo de nuevo."
+    },
+    "finalityTimeout": {
+      "title": "Tiempo de espera agotado",
+      "message": "La finalidad tardó demasiado. Puede que aún se finalice: revise el historial de transacciones; si no, inténtelo de nuevo."
+    },
+    "transferFailed": {
+      "title": "Transferencia fallida",
+      "message": "La transacción fue {0}. Asegúrese de tener saldo suficiente y conectividad de red, e inténtelo de nuevo."
+    },
+    "invalidAmount": {
+      "title": "Cantidad no válida",
+      "message": "La transferencia mínima es {0} AI3. Introduzca una cantidad válida para continuar."
+    },
+    "walletsNotConnected": {
+      "title": "Carteras no conectadas",
+      "message": "Conecte tanto su cartera de Consenso como la EVM para realizar la transferencia."
+    },
+    "transferInitFailed": {
+      "title": "Error al iniciar la transferencia",
+      "hint": "Asegúrese de que ambas carteras estén conectadas y de que tiene saldo suficiente, e inténtelo de nuevo."
+    },
+    "e2cProviderMissing": "La cartera EVM vinculada (cuenta EVM de SubWallet/Talisman) no está disponible. Las transferencias E2C se envían desde esa cuenta mediante el precompilado transporter."
   },
   "wallet": {
     "evmChain": "Cadena EVM",
@@ -18,7 +55,8 @@
     "connectSubwallet": "Conectar SubWallet/Talisman",
     "linkedEvmAddress": "Dirección EVM Vinculada",
     "copyAddressTooltip": "Haga clic para copiar la dirección",
-    "refreshBalance": "Actualizar Saldo"
+    "refreshBalance": "Actualizar Saldo",
+    "selectAccount": "Seleccionar cuenta"
   },
   "logging": {
     "logs": "Registros",
@@ -27,9 +65,9 @@
   "docs": {
     "title": "Documentación",
     "c2eTitle": "Transferencias Consenso → EVM",
-    "c2eBody": "Gestionado automáticamente a través de la aplicación. Espere 100 tiempos de bloque de consenso (~10 min) para que aparezcan los fondos.",
-    "e2cTitle": "Transferencias EVM → Consenso (Pruebas Preliminares)",
-    "e2cBody": "Esta transferencia está ahora habilitada para pruebas preliminares. Tenga en cuenta que el progreso y el historial de la transacción no están disponibles para este tipo de transferencia. Se espera que los fondos lleguen a la cadena de Consenso después de aproximadamente 14,400 bloques (alrededor de 24 horas). Proceda con precaución. Para transferencias manuales, aún puede usar esta guía: {0}.",
+    "c2eBody": "Gestionado automáticamente a través de la aplicación. Los fondos suelen llegar en 10–30 minutos (medido en mainnet: ~25 min).",
+    "e2cTitle": "Transferencias EVM → Consenso",
+    "e2cBody": "Enviada mediante el precompilado transporter en Auto-EVM. Se espera que los fondos lleguen a la cadena de Consenso tras el período de desafío de ~24 horas. Proceda con precaución. Para transferencias manuales, aún puede usar esta guía: {0}.",
     "e2cLinkText": "Guía de Auto-EVM a Consenso",
     "setupTitle": "Notas de Configuración",
     "setupConsensus": "Consenso: Use SubWallet/Talisman con Autonomys Consensus (RPC: {0}, SS58 {1}).",
@@ -55,6 +93,13 @@
       "title": "Transferencia Enviada",
       "message": "Su transferencia ha sido enviada con éxito e incluida en un bloque. Se espera que llegue a la cadena de Consenso después de aproximadamente 14,400 bloques (alrededor de 24 horas). Ahora puede cerrar esta ventana de forma segura o iniciar otra transferencia.",
       "confirmButton": "OK"
+    },
+    "arrivalNoteC2E": "Llegada ≈ cantidad × 99,99 % (comisión del protocolo XDM ~0,01 %). Normalmente 10–30 minutos, ocasionalmente más.",
+    "arrivalNoteE2C": "Los fondos llegan a Consenso tras el período de desafío de ~24 horas.",
+    "amountPrecision": "Se admiten como máximo 18 decimales. Ajuste la cantidad.",
+    "e2cConfirmed": {
+      "title": "Transferencia confirmada en Auto-EVM",
+      "message": "Su transferencia de {0} AI3 a {1} ha sido confirmada en Auto-EVM. Los fondos llegan a la cadena de Consenso tras el período de desafío de ~24 horas. Conserve la entrada en el historial y márquela como recibida cuando lleguen los fondos."
     }
   },
   "history": {
@@ -68,7 +113,15 @@
     "to": "A",
     "block": "Bloque",
     "estimatedArrival": "Llegada estimada a EVM: {0}",
-    "statusValues": { "Success": "Éxito", "Failed": "Fallido", "Pending": "Pendiente", "Unknown": "Desconocido" }
+    "statusValues": {
+      "Success": "Éxito",
+      "Failed": "Fallido",
+      "Pending": "Pendiente",
+      "Unknown": "Desconocido"
+    },
+    "unavailable": "El servicio de historial (Subscan) no está disponible actualmente. Las entradas mostradas pueden estar desactualizadas: inténtelo de nuevo más tarde.",
+    "challengeEnds": "El período de desafío termina en: {0}",
+    "markReceived": "Marcar como recibida"
   },
   "languageSwitcher": {
     "label": "Idioma"

@@ -8,7 +8,44 @@
     "addressCopied": "Address copied to clipboard!",
     "addressCopyFailed": "Failed to copy address.",
     "balancesRefreshed": "Balances refreshed successfully",
-    "balanceRefreshFailed": "Failed to refresh balances"
+    "balanceRefreshFailed": "Failed to refresh balances",
+    "fundsArrived": {
+      "title": "Funds arrived",
+      "message": "Transfer received on Auto-EVM: {0} AI3"
+    },
+    "stillBridging": {
+      "title": "Still bridging",
+      "message": "The 30-minute arrival window has elapsed without a detected balance change. XDM transfers can take longer — use Refresh Balance or the history panel to check again."
+    },
+    "inclusionTimeout": {
+      "title": "Transaction not yet seen on chain",
+      "message": "The transaction may still be waiting in the mempool. Do NOT resubmit it with the same account (Subspace rejects duplicate nonces) — check the history panel later."
+    },
+    "retracted": {
+      "title": "Transaction Retracted",
+      "message": "The transaction was retracted by the network. Please check your wallet and try again."
+    },
+    "finalityTimeout": {
+      "title": "Transaction Timeout",
+      "message": "Finality timed out. It may still finalize, so please check your transaction history. If not, please retry."
+    },
+    "transferFailed": {
+      "title": "Transfer Failed",
+      "message": "The transaction was {0}. Please ensure you have sufficient balance and network connectivity, then try again."
+    },
+    "invalidAmount": {
+      "title": "Invalid Amount",
+      "message": "The minimum transfer amount is {0} AI3. Please enter a valid amount to proceed."
+    },
+    "walletsNotConnected": {
+      "title": "Wallets Not Connected",
+      "message": "Please connect both your Consensus and EVM wallets to proceed with the transfer."
+    },
+    "transferInitFailed": {
+      "title": "Transfer Initiation Failed",
+      "hint": "Please ensure both wallets are connected, you have sufficient balance, and try again."
+    },
+    "e2cProviderMissing": "The linked EVM wallet (SubWallet/Talisman EVM account) is not available. E2C transfers are sent from that account via the transporter precompile."
   },
   "wallet": {
     "evmChain": "EVM Chain",
@@ -18,7 +55,8 @@
     "connectSubwallet": "Connect SubWallet/Talisman",
     "linkedEvmAddress": "Linked EVM Address",
     "copyAddressTooltip": "Click to copy address",
-    "refreshBalance": "Refresh Balance"
+    "refreshBalance": "Refresh Balance",
+    "selectAccount": "Select account"
   },
   "logging": {
     "logs": "Logs",
@@ -27,9 +65,9 @@
   "docs": {
     "title": "Documentation",
     "c2eTitle": "Consensus → EVM Transfers",
-    "c2eBody": "Handled automatically via the app. Wait 100 consensus block time (~10 min) for funds to appear.",
-    "e2cTitle": "EVM → Consensus Transfers (Preliminary Testing)",
-    "e2cBody": "This transfer is now enabled for preliminary testing. Note that transaction progress and history are not available for this transfer type. Funds are expected to arrive on the Consensus chain after approximately 14,400 blocks (around 24 hours). Please proceed with caution. For manual transfers, you can still use this guide: {0}.",
+    "c2eBody": "Handled automatically via the app. Funds usually arrive within 10–30 minutes (measured ~25 min on mainnet).",
+    "e2cTitle": "EVM → Consensus Transfers",
+    "e2cBody": "Sent via the transporter precompile on Auto-EVM. Funds are expected to arrive on the Consensus chain after the ~24-hour challenge period. Please proceed with caution. For manual transfers, you can still use this guide: {0}.",
     "e2cLinkText": "Auto-EVM to Consensus Guide",
     "setupTitle": "Setup Notes",
     "setupConsensus": "Consensus: Use SubWallet/Talisman with Autonomys Consensus (RPC: {0}, SS58 {1}).",
@@ -43,6 +81,9 @@
     "e2cTitle": "Auto-EVM → Consensus",
     "amountPlaceholder": "Amount in AI3",
     "minTransfer": "Minimum transfer: {0} AI3",
+    "arrivalNoteC2E": "Arrival ≈ amount × 99.99% (XDM protocol fee ~0.01%). Usually 10–30 minutes, occasionally longer.",
+    "arrivalNoteE2C": "Funds arrive on Consensus after the ~24-hour challenge period.",
+    "amountPrecision": "At most 18 decimal places are supported. Please adjust the amount.",
     "button": "Transfer",
     "prepareFundButton": "Prepare Fund",
     "buttonTransferring": "Transferring...",
@@ -50,6 +91,10 @@
       "title": "Preliminary Testing Notice",
       "message": "The Auto-EVM to Consensus transfer mode is for preliminary testing only. Transaction progress and history are not available for this type of transfer. Please proceed with caution.",
       "confirmButton": "I Understand"
+    },
+    "e2cConfirmed": {
+      "title": "Transfer Confirmed on Auto-EVM",
+      "message": "Your transfer of {0} AI3 to {1} has been confirmed on Auto-EVM. Funds arrive on the Consensus chain after the ~24-hour challenge period. Keep this entry in the history panel and mark it as received once the funds land."
     },
     "e2cInBlock": {
       "title": "Transfer Submitted",
@@ -61,6 +106,7 @@
     "title": "Transaction History",
     "refresh": "Refresh",
     "empty": "No transactions yet. Your activity will appear here.",
+    "unavailable": "History service (Subscan) is currently unavailable. Shown entries may be stale — try again later.",
     "direction": "Direction",
     "status": "Status",
     "amount": "Amount",
@@ -68,6 +114,8 @@
     "to": "To",
     "block": "Block",
     "estimatedArrival": "Estimated EVM arrival: {0}",
+    "challengeEnds": "Challenge period ends in: {0}",
+    "markReceived": "Mark as received",
     "statusValues": { "Success": "Success", "Failed": "Failed", "Pending": "Pending", "Unknown": "Unknown" }
   },
   "languageSwitcher": {

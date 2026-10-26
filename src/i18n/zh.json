@@ -8,7 +8,44 @@
     "addressCopied": "地址已复制到剪贴板！",
     "addressCopyFailed": "复制地址失败。",
     "balancesRefreshed": "余额刷新成功",
-    "balanceRefreshFailed": "刷新余额失败"
+    "balanceRefreshFailed": "刷新余额失败",
+    "fundsArrived": {
+      "title": "资金已到账",
+      "message": "转账已在 Auto-EVM 到账：{0} AI3"
+    },
+    "stillBridging": {
+      "title": "仍在桥接中",
+      "message": "30 分钟到账窗口内未检测到余额变化。XDM 转账有时更慢——请稍后用「刷新余额」或历史面板再查。"
+    },
+    "inclusionTimeout": {
+      "title": "交易尚未上链",
+      "message": "交易可能仍在内存池中等待。请勿用同一账户重发（Subspace 会拒绝重复 nonce）——稍后在历史面板查看。"
+    },
+    "retracted": {
+      "title": "交易已撤回",
+      "message": "交易被网络撤回。请检查钱包后重试。"
+    },
+    "finalityTimeout": {
+      "title": "交易超时",
+      "message": "最终性等待超时。交易仍可能最终确认，请稍后检查交易历史；若未确认请重试。"
+    },
+    "transferFailed": {
+      "title": "转账失败",
+      "message": "交易状态：{0}。请确认余额充足、网络正常后重试。"
+    },
+    "invalidAmount": {
+      "title": "金额无效",
+      "message": "最小转账金额为 {0} AI3。请输入有效金额。"
+    },
+    "walletsNotConnected": {
+      "title": "钱包未连接",
+      "message": "请先连接共识链与 EVM 钱包再进行转账。"
+    },
+    "transferInitFailed": {
+      "title": "转账发起失败",
+      "hint": "请确认两个钱包均已连接且余额充足，然后重试。"
+    },
+    "e2cProviderMissing": "关联的 EVM 钱包（SubWallet/Talisman 的 EVM 账户）不可用。E2C 转账需从该账户经 transporter precompile 发出。"
   },
   "wallet": {
     "evmChain": "EVM 链",
@@ -18,7 +55,8 @@
     "connectSubwallet": "连接 SubWallet/Talisman",
     "linkedEvmAddress": "关联的EVM地址",
     "copyAddressTooltip": "点击复制地址",
-    "refreshBalance": "刷新余额"
+    "refreshBalance": "刷新余额",
+    "selectAccount": "选择账户"
   },
   "logging": {
     "logs": "日志",
@@ -27,9 +65,9 @@
   "docs": {
     "title": "文档",
     "c2eTitle": "共识 → EVM 转账",
-    "c2eBody": "通过应用自动处理。等待 100 个共识区块时间（约10分钟），资金即可到账。",
-    "e2cTitle": "EVM → 共识转账 (初步测试)",
-    "e2cBody": "此转账功能现已启用，用于初步测试。请注意，此类转账无法查看交易进度和历史记录。资金预计在大约 14,400 个区块（约 24 小时）后到达共识链。请谨慎操作。对于手动转账，您仍然可以使用本指南：{0}。",
+    "c2eBody": "通过应用自动处理。资金通常 10–30 分钟到账（主网实测约 25 分钟）。",
+    "e2cTitle": "EVM → 共识转账",
+    "e2cBody": "经 Auto-EVM 上的 transporter precompile 发送。资金预计在约 24 小时挑战期后到达共识链。请谨慎操作。对于手动转账，您仍然可以使用本指南：{0}。",
     "e2cLinkText": "Auto-EVM 到共识指南",
     "setupTitle": "设置说明",
     "setupConsensus": "共识：使用 SubWallet/Talisman 与 Autonomys Consensus (RPC: {0}, SS58 {1})。",
@@ -43,6 +81,9 @@
     "e2cTitle": "Auto-EVM → 共识",
     "amountPlaceholder": "AI3 数量",
     "minTransfer": "最小转账金额: {0} AI3",
+    "arrivalNoteC2E": "到账 ≈ 金额 × 99.99%（XDM 协议费约 0.01%）。通常 10–30 分钟，偶尔更久。",
+    "arrivalNoteE2C": "资金将在约 24 小时挑战期后到达共识链。",
+    "amountPrecision": "最多支持 18 位小数，请调整金额。",
     "button": "转账",
     "prepareFundButton": "准备资金",
     "buttonTransferring": "转账中...",
@@ -50,6 +91,10 @@
       "title": "初步测试通知",
       "message": "Auto-EVM 到共识链的转账模式仅用于初步测试。此类转账无法查看交易进度和历史记录。请谨慎操作。",
       "confirmButton": "我明白"
+    },
+    "e2cConfirmed": {
+      "title": "转账已在 Auto-EVM 确认",
+      "message": "您向 {1} 转账 {0} AI3 已在 Auto-EVM 确认。资金将在约 24 小时挑战期后到达共识链。请在历史面板保留该记录，到账后点击「标记已收到」。"
     },
     "e2cInBlock": {
       "title": "转账已提交",
@@ -61,6 +106,7 @@
     "title": "交易历史",
     "refresh": "刷新",
     "empty": "暂无交易。您的活动将显示在此处。",
+    "unavailable": "历史服务（Subscan）当前不可用，显示的记录可能不是最新——请稍后重试。",
     "direction": "方向",
     "status": "状态",
     "amount": "数量",
@@ -68,6 +114,8 @@
     "to": "至",
     "block": "区块",
     "estimatedArrival": "预计 EVM 到达时间: {0}",
+    "challengeEnds": "挑战期剩余: {0}",
+    "markReceived": "标记已收到",
     "statusValues": { "Success": "成功", "Failed": "失败", "Pending": "处理中", "Unknown": "未知" }
   },
   "languageSwitcher": {

@@ -1,179 +1,84 @@
-// src/composables/useSubstrateWallet.js (Fixed with markRaw + dynamic SDK import)
-import { ref, markRaw } from 'vue'; // ADDED: markRaw to skip reactivity on ApiPromise
+// src/composables/useSubstrateWallet.js
+import { ref, markRaw } from 'vue';
 import { web3Accounts, web3Enable, web3FromAddress } from '@polkadot/extension-dapp';
 import { ElNotification } from 'element-plus';
-import { ApiPromise, WsProvider } from '@polkadot/api'; // ADDED: ethers for balance
-import { ethers, BrowserProvider } from 'ethers';
+import { ApiPromise } from '@polkadot/api';
+import { BrowserProvider } from 'ethers';
 import { decodeAddress, encodeAddress } from '@polkadot/util-crypto';
-// REMOVED: Static import of transferToDomainAccount20Type (revert to dynamic)
-import { CONSENSUS_RPC, AUTONOMYS_PREFIX, DECIMALS, SUBSCAN_BASE, DOMAIN_ID, EVM_RPC } from '@/constants';
+import { PacedWsProvider, probeProvider } from '@/lib/pacedProvider';
+import { CONSENSUS_RPC, AUTONOMYS_PREFIX, DECIMALS, SUBSCAN_BASE, DOMAIN_ID, EVM_RPC_HTTPS } from '@/constants';
+
+// C2E arrival window: protocol docs say 100 domain blocks (~10 min), but the
+// 2026-10-26 mainnet field test measured ~25 min for funds to land. 30 min
+// keeps us polling long enough to see the real arrival instead of a fake failure.
+export const C2E_ARRIVAL_MS = 30 * 60 * 1000;
+// E2C goes through the transporter precompile and has a 1-day challenge period.
+export const E2C_CHALLENGE_MS = 24 * 60 * 60 * 1000;
 
 export function useSubstrateWallet(addLog) {
     // Substrate State
     const consensusApi = ref(null); // Signed API
-    const evmApi = ref(null); // ADDED: Signed API for the EVM domain
     const readOnlyConsensusApi = ref(null); // Read-only API
     const consensusAccount = ref(null);
+    const substrateAccounts = ref([]); // All extension accounts (for the account selector)
     const consensusBalance = ref(0);
     const consensusBalanceLoading = ref(false);
     const consensusAddress = ref('');
-    const substrateLinkedEvmAddress = ref(''); // ADDED: To store the EVM address from the Substrate wallet
-    const substrateLinkedEvmBalance = ref('0'); // ADDED: To store the linked EVM address balance
-    const substrateLinkedEvmBalanceLoading = ref(false); // ADDED: Loading state for linked EVM balance
-    const evmProvider = ref(null); // To store the EIP-6963 provider
+    const substrateLinkedEvmAddress = ref(''); // EVM address linked to the Substrate wallet (E2C source)
+    const substrateLinkedEvmBalance = ref('0');
+    const substrateLinkedEvmBalanceLoading = ref(false);
+    const linkedEvmProvider = ref(null); // EIP-6963 provider of the linked wallet (used for E2C precompile txs)
     const fetchedTransactions = ref([]); // Consensus transporter transfers
+    const historyStatus = ref('idle'); // 'idle' | 'ok' | 'unavailable' (history service down)
 
-    // Cleanup function (unchanged)
     const disconnectApis = async () => {
         if (consensusApi.value) {
-            await consensusApi.value.disconnect();
+            await consensusApi.value.disconnect().catch(() => {});
             consensusApi.value = null;
         }
-        if (evmApi.value) { // ADDED: Disconnect evmApi as well
-            await evmApi.value.disconnect();
-            evmApi.value = null;
-        }
         if (readOnlyConsensusApi.value) {
-            await readOnlyConsensusApi.value.disconnect();
+            await readOnlyConsensusApi.value.disconnect().catch(() => {});
             readOnlyConsensusApi.value = null;
         }
         addLog('APIs disconnected');
     };
 
-    // Reusable helper to wait for API readiness (unchanged)
-    const waitForReady = async (api) => {
-        try {
-            await api.isReady;
-            addLog('API ready (standard)');
-            return;
-        } catch (error) {
-            console.warn('Standard isReady failed (expected in prod):', error.message);
-            
-            if (error.message.includes('#isReadyPromise') || error.message.includes('private member')) {
-                addLog('Using ready event fallback...');
-                await new Promise((resolve, reject) => {
-                    const timeout = setTimeout(() => {
-                        api.off('ready', handleReady);
-                        api.off('disconnected', handleDisconnect);
-                        reject(new Error('API readiness timeout (10s)'));
-                    }, 10000);
-
-                    const handleReady = () => {
-                        clearTimeout(timeout);
-                        api.off('ready', handleReady);
-                        api.off('disconnected', handleDisconnect);
-                        addLog('API ready (fallback)');
-                        resolve();
-                    };
-
-                    const handleDisconnect = () => {
-                        clearTimeout(timeout);
-                        api.off('ready', handleReady);
-                        reject(new Error('Disconnected before ready'));
-                    };
-
-                    api.on('ready', handleReady);
-                    api.on('disconnected', handleDisconnect);
-
-                    if (api.isConnected && api.registry?.isReady) { // Safe: Direct access post-markRaw
-                        clearTimeout(timeout);
-                        api.off('ready', handleReady);
-                        addLog('API ready (immediate check)');
-                        resolve();
-                    }
-                });
-            } else {
-                console.error('API readiness failed (non-proxy):', error);
-                throw error;
-            }
-        }
-    };
-
     async function createApiInstance(rpcUrl) {
-        try {
-            addLog('Creating API instance...');
-            const provider = new WsProvider(rpcUrl);
+        addLog(`Creating paced API instance for ${rpcUrl}...`);
+        const provider = new PacedWsProvider(rpcUrl);
 
-            // --- Event-driven connection handling ---
-            // Listen for disconnection events to reset the wallet state globally.
-            provider.on('disconnected', async () => {
-                addLog(`API-WS: disconnected from ${rpcUrl}. Resetting wallet state.`);
-                // This ensures that if the websocket drops for any reason, the UI
-                // reflects the disconnected state, allowing the user to reconnect.
-                await disconnect();
-            });
+        // If the websocket drops for any reason, the UI reflects the
+        // disconnected state, allowing the user to reconnect.
+        provider.on('disconnected', () => {
+            addLog(`API-WS: disconnected from ${rpcUrl}. Resetting wallet state.`);
+            disconnect();
+        });
+        provider.on('connected', () => {
+            addLog(`API-WS: connected to ${rpcUrl}.`);
+        });
 
-            provider.on('connected', () => {
-                addLog(`API-WS: successfully connected to ${rpcUrl}.`);
-            });
-            // --- End event handling ---
+        // Probe before ApiPromise.create: its init burst lands on a banned IP
+        // otherwise, and bans are extended by retrying.
+        await probeProvider(provider);
 
-            const apiInstance = await ApiPromise.create({
-                provider,
-                types: {
-                    // Core types from SDK/docs + fix for SpDomainsChainId
-                    AccountId20: '[u8;20]',
-                    DomainId: 'u32',
-                    ChainId: 'u32',
-                    SpDomainsChainId: 'u32', // Registers the missing type (u32 alias)
-                    // XCM for dest if needed by SDK internals
-                    MultiLocation: {
-                        parents: 'u8',
-                        interior: 'Junctions'
-                    },
-                    Junctions: {
-                        _enum: {
-                            Here: null,
-                            X1: 'Junction'
-                        }
-                    },
-                    Junction: {
-                        _enum: {
-                            AccountId20: 'AccountId20'
-                        }
-                    }
-                }
-            });
+        // No custom `types` and no manual metadata refresh: mainnet metadata
+        // natively registers all transporter types (field-tested 2026-10-26;
+        // injected aliases like AccountId20 crash storage decoding on
+        // polkadot-api >= 16 and are redundant everywhere else).
+        const apiInstance = await ApiPromise.create({ provider, noInitWarn: true });
 
-            // Refresh metadata (critical for runtime types)
-            const metadata = await apiInstance.rpc.state.getMetadata();
-            apiInstance.registry.setMetadata(metadata);
-            addLog('Metadata refreshed for mainnet custom types');
-
-            await waitForReady(apiInstance);
-
-            // Validate chain
-            const chain = await apiInstance.rpc.system.chain();
-            addLog(`Connected to chain: ${chain}`);
-            // This validation is too strict for both chains, so we'll just log it.
-            // const expectedName = 'Autonomys Mainnet';
-            // addLog(`Connected to ${chain} (expected: ${expectedName})`);
-
-            // Verify SDK-required types
-            if (apiInstance.registry.get('SpDomainsChainId') && apiInstance.registry.get('AccountId20')) {
-                addLog('SDK types (SpDomainsChainId, AccountId20) registered successfully');
-            } else {
-                throw new Error('SDK type registration failed');
-            }
-
-            return apiInstance;
-        } catch (error) {
-            addLog(`Error creating API: ${error.message}`);
-            // If API creation fails (e.g., WebSocket error), reset state
-            await disconnect();
-            throw error;
-        }
+        const chain = await apiInstance.rpc.system.chain();
+        addLog(`Connected to chain: ${chain}`);
+        return apiInstance;
     }
 
     // Create read-only API if address set
     const initReadOnlyApi = async () => {
         if (consensusAddress.value && !readOnlyConsensusApi.value) {
             try {
-                const rawApi = await createApiInstance(CONSENSUS_RPC);
-                readOnlyConsensusApi.value = markRaw(rawApi); // ADDED: markRaw to prevent Vue reactivity proxy
-                addLog('Read-only Consensus API initialized with custom types (Mainnet)');
+                readOnlyConsensusApi.value = markRaw(await createApiInstance(CONSENSUS_RPC));
+                addLog('Read-only Consensus API initialized (Mainnet)');
 
-                // Initial fetches after API is ready
                 await updateBalance();
                 await fetchTransactions();
             } catch (error) {
@@ -200,7 +105,9 @@ export function useSubstrateWallet(addLog) {
         }
     };
 
-    // Fetch transactions (unchanged)
+    // Fetch transactions (Subscan-backed; keeps old data and flags
+    // 'unavailable' on failure so the UI can distinguish "no history" from
+    // "history service down").
     const fetchTransactions = async () => {
         const apiToUse = readOnlyConsensusApi.value || consensusApi.value;
         if (!apiToUse || !consensusAddress.value) return;
@@ -242,6 +149,8 @@ export function useSubstrateWallet(addLog) {
                 if (page > 10) break;
             }
 
+            historyStatus.value = 'ok';
+
             // Filter to transporter.transfer
             const transporterTxs = allExtrinsics
                 .filter(tx => tx.call_module === 'transporter' && tx.call_module_function === 'transfer')
@@ -278,10 +187,9 @@ export function useSubstrateWallet(addLog) {
                         const domainId = args.dst_location.chainId.Domain || '';
 
                         const transferTime = new Date(tx.block_timestamp * 1000);
-                        const expectedArrival = destAccount.startsWith('0x') ? new Date(transferTime.getTime() + 10 * 60 * 1000).toISOString() : null;
+                        const expectedArrival = destAccount.startsWith('0x') ? new Date(transferTime.getTime() + C2E_ARRIVAL_MS).toISOString() : null;
                         const direction = destAccount.startsWith('0x') ? 'consensusToEVM' : 'consensusToConsensus';
 
-                        // Log detailed information to page via addLog only for new
                         addLog(`Transporter Tx ${tx.extrinsic_hash}: ${amount} AI3 to ${destAccount} (Domain: ${domainId})`);
 
                         fetchedTransactions.value.push({
@@ -312,121 +220,111 @@ export function useSubstrateWallet(addLog) {
             fetchedTransactions.value.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
             addLog(`Processed ${newCount} new Consensus transporter transfers (total: ${fetchedTransactions.value.length})`);
         } catch (error) {
-            addLog(`Error fetching Consensus extrinsics via Subscan V2: ${error.message}`);
+            historyStatus.value = 'unavailable';
+            addLog(`History service unavailable (Subscan): ${error.message}`);
         }
     };
 
-    // Perform Consensus to EVM transfer (reverted to dynamic import + safe inspect)
+    // Perform Consensus to EVM transfer.
+    // Bare extrinsic construction — the params are plain JS objects and are
+    // encoded against the chain metadata (no SDK wrapper, no custom types).
+    // Verified against mainnet (PermaDrive P2, tx 0x0758bae7…).
     const performConsensusTransfer = async (evmAddress, amountWei, onStatusUpdate) => {
         if (!consensusApi.value) {
             throw new Error('Consensus API not initialized');
         }
 
-        // Inspect logging with safe readiness check (unchanged)
-        addLog(`=== Transfer Initialization Inspect ===`);
-        addLog(`Consensus API exists: ${!!consensusApi.value}`);
-        addLog(`Consensus API ready: ${consensusApi.value?.isConnected && consensusApi.value?.registry?.isReady ? 'yes' : 'no'}`);
-        addLog(`API registry has SpDomainsChainId: ${!!consensusApi.value?.registry?.get('SpDomainsChainId')}`);
-        addLog(`API registry has AccountId20: ${!!consensusApi.value?.registry?.get('AccountId20')}`);
-        addLog(`API registry has DomainId: ${!!consensusApi.value?.registry?.get('DomainId')}`);
-        addLog(`DOMAIN_ID value/type: ${DOMAIN_ID} (${typeof DOMAIN_ID})`);
-        addLog(`EVM address: ${evmAddress} (type: ${typeof evmAddress})`);
-        addLog(`Amount Wei: ${amountWei} (type: ${typeof amountWei})`);
-        addLog(`Consensus account address: ${consensusAccount.value?.address || 'N/A'}`);
-        addLog(`Consensus encoded address: ${consensusAddress.value || 'N/A'}`);
-        addLog(`Signer attached: ${!!consensusApi.value?._signer}`);
-        addLog(`============================`);
+        addLog(`Preparing C2E transfer: ${evmAddress}, ${amountWei} wei, domain ${DOMAIN_ID}`);
+        const tx = consensusApi.value.tx.transporter.transfer(
+            { chainId: { Domain: DOMAIN_ID }, accountId: { AccountId20: evmAddress } },
+            amountWei,
+        );
+        addLog('Transfer extrinsic prepared (bare metadata-driven construction)');
 
-        try {
-            // UPDATED: Use transporterTransfer instead of deprecated transferToDomainAccount20Type
-            const { transporterTransfer } = await import('@autonomys/auto-xdm');
-            addLog('Auto-XDM SDK imported dynamically');
+        addLog('Signing and sending transaction... (check extension for signature prompt)');
+        const unsubscribe = await tx.signAndSend(consensusAccount.value.address, ({ status }) => {
+            addLog(`Transaction status: ${status.type}`);
+            onStatusUpdate?.({ status });
 
-            // Pass markRaw-wrapped api (safe for SDK's registry access)
-            const tx = await transporterTransfer(consensusApi.value, { domainId: DOMAIN_ID }, { accountId20: evmAddress }, amountWei.toString());
-            const extrinsicHash = tx.hash.toHex();
-            addLog('Transfer extrinsic prepared via SDK');
-
-            addLog('Signing and sending transaction... (check extension for signature prompt)');
-            const unsubscribe = await tx.signAndSend(consensusAccount.value.address, ({ status }) => {
-                const statusMsg = `Transaction status: ${status.type}`;
-                addLog(statusMsg);
-                onStatusUpdate?.({ status });
-
-                if (status.isInBlock) {
-                    addLog('Transaction in block');
-                }
-                if (status.isFinalized) {
-                    addLog('Substrate transaction finalized');
-                }
-                if (status.isRetracted) {
-                    addLog('Transaction retracted');
-                }
-                if (status.isFinalityTimeout) {
-                    addLog('Transaction finality timeout - may finalize later');
-                }
-            });
-            addLog('signAndSend initiated (unsubscribe ready)');
-            return { unsubscribe, hash: extrinsicHash };
-        } catch (error) {
-            addLog(`SDK transfer failed: ${error.message}`);
-            console.error('SDK transfer error:', error);
-            throw error;
-        }
+            if (status.isInBlock) {
+                addLog('Transaction in block');
+            }
+            if (status.isFinalized) {
+                addLog('Substrate transaction finalized');
+            }
+            if (status.isRetracted) {
+                addLog('Transaction retracted');
+            }
+            if (status.isFinalityTimeout) {
+                addLog('Transaction finality timeout - may finalize later');
+            }
+        });
+        addLog('signAndSend initiated (unsubscribe ready)');
+        return { unsubscribe, hash: tx.hash.toHex() };
     };
 
-    // Perform EVM to Consensus transfer
-    const performEvmToConsensusTransfer = async (consensusAddress, amountWei, onStatusUpdate) => {
-        // REFACTORED: Use the persistent evmApi instance
-        if (!evmApi.value) {
-            throw new Error('EVM API not initialized. Ensure the Substrate wallet with a linked EVM address is connected.');
+    // Perform EVM to Consensus transfer via the transporter precompile.
+    // auto-xdm's transferToConsensus sends a plain Ethereum tx to the
+    // precompile (transfer_to_consensus_v1(bytes32,uint256)); the precompile
+    // is deployed on Auto-EVM mainnet (min transfer 1 AI3, verified 2026-10-26).
+    // This needs only an EVM signer from the linked wallet — no Auto-EVM
+    // Substrate API instance.
+    const performEvmToConsensusTransfer = async (consensusDestAddress, amountWei, onStatusUpdate) => {
+        if (!linkedEvmProvider.value) {
+            throw new Error('Linked EVM provider not available. Connect a Substrate wallet with EVM support (SubWallet/Talisman) to transfer EVM → Consensus.');
+        }
+        if (!substrateLinkedEvmAddress.value) {
+            throw new Error('Linked EVM address unknown; cannot sign the precompile transfer.');
         }
 
-        addLog(`=== E2C Transfer Initialization ===`);
-        addLog(`Destination Consensus Address: ${consensusAddress}`);
+        addLog(`=== E2C Transfer (transporter precompile) ===`);
+        addLog(`Destination Consensus Address: ${consensusDestAddress}`);
         addLog(`Amount (Wei): ${amountWei}`);
         addLog(`Source EVM Address: ${substrateLinkedEvmAddress.value}`);
-        addLog(`EVM API ready: ${evmApi.value?.isConnected && evmApi.value?.registry?.isReady ? 'yes' : 'no'}`);
-        addLog(`EVM API Signer attached: ${!!evmApi.value?._signer}`);
-        addLog(`=================================`);
 
         try {
-            // 1. Dynamically import the SDK function
             const { transferToConsensus } = await import('@autonomys/auto-xdm');
-            addLog('Auto-XDM SDK (transferFromDomain) imported dynamically.');
+            addLog('Auto-XDM precompile helper imported.');
 
-            // 2. Prepare the transaction using the existing evmApi
-            const tx = await transferToConsensus(evmApi.value, consensusAddress, amountWei.toString());
-            const extrinsicHash = tx.hash.toHex();
-            addLog('E2C transfer extrinsic prepared via SDK.');
+            const browserProvider = new BrowserProvider(linkedEvmProvider.value);
+            const signer = await browserProvider.getSigner(substrateLinkedEvmAddress.value);
 
-            // 3. Sign and send
-            addLog('Sending transaction... (check wallet for signature prompt)');
-            const unsubscribe = await tx.signAndSend(substrateLinkedEvmAddress.value, ({ status }) => {
-                const statusMsg = `Transaction status: ${status.type}`;
-                addLog(statusMsg);
-                onStatusUpdate?.({ status });
-            });
+            addLog('Sending precompile transaction... (check wallet for signature prompt)');
+            const result = await transferToConsensus(signer, consensusDestAddress, amountWei, { confirmations: 1 });
 
-            addLog('E2C signAndSend initiated.');
-            return { unsubscribe, hash: extrinsicHash };
+            if (!result.success) {
+                throw new Error('Precompile transaction reverted');
+            }
+            addLog(`E2C precompile transaction confirmed: ${result.transactionHash} (block ${result.blockNumber})`);
+            onStatusUpdate?.({ type: 'confirmed', hash: result.transactionHash });
+            return { unsubscribe: () => {}, hash: result.transactionHash };
         } catch (error) {
-            addLog(`E2C SDK transfer failed: ${error.message}`);
-            console.error('E2C SDK transfer error:', error);
+            addLog(`E2C transfer failed: ${error.message}`);
+            console.error('E2C transfer error:', error);
             throw error;
         }
     };
 
-    // --- ADDED: Function to get linked EVM balance ---
+    // Linked EVM balance via a single raw eth_getBalance call — no ethers
+    // provider stack needed for a read-only balance.
     const getLinkedEvmBalance = async (evmAddress) => {
         if (!evmAddress) return;
         substrateLinkedEvmBalanceLoading.value = true;
         try {
-            // Use a read-only provider for balance checks
-            const provider = new ethers.getDefaultProvider(EVM_RPC);
-            const balanceWei = await provider.getBalance(evmAddress);
-            const balanceEther = ethers.formatUnits(balanceWei, DECIMALS);
-            substrateLinkedEvmBalance.value = parseFloat(balanceEther).toFixed(4);
+            const response = await fetch(EVM_RPC_HTTPS, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_getBalance', params: [evmAddress, 'latest'] }),
+            });
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            const msg = await response.json();
+            if (msg.error) {
+                throw new Error(msg.error.message ?? 'eth_getBalance error');
+            }
+            const balanceWei = BigInt(msg.result);
+            substrateLinkedEvmBalance.value = (Number(balanceWei) / Number(10n ** DECIMALS)).toFixed(4);
             addLog(`Linked EVM balance updated: ${substrateLinkedEvmBalance.value} AI3`);
         } catch (error) {
             addLog(`Error updating linked EVM balance: ${error.message}`);
@@ -437,7 +335,8 @@ export function useSubstrateWallet(addLog) {
         }
     };
 
-    // --- ADDED: Local function to get linked EVM address ---
+    // Discover the EVM address linked to the Substrate wallet (E2C source).
+    // Only discovers — API instances are created exclusively in connect().
     const fetchLinkedEvmAddress = async (source) => {
         try {
             addLog('Attempting to find linked EVM address...');
@@ -449,7 +348,13 @@ export function useSubstrateWallet(addLog) {
             }
 
             if (!walletEVMName) {
-                addLog(`Wallet source '${source}' is not configured for EVM address discovery.`);
+                addLog(`Wallet source '${source}' does not expose a linked EVM address. EVM → Consensus transfers are disabled; Consensus → EVM still works.`);
+                ElNotification({
+                    title: 'EVM Linking Skipped',
+                    message: `The connected wallet ('${source}') is not known to expose a linked EVM address. EVM → Consensus transfers are disabled, but Consensus → EVM works.`,
+                    type: 'info',
+                    duration: 8000,
+                });
                 return;
             }
 
@@ -473,7 +378,6 @@ export function useSubstrateWallet(addLog) {
 
             if (matchingProviderDetail) {
                 evmProviderInfo = { provider: matchingProviderDetail.provider, name: `EIP-6963: ${matchingProviderDetail.info.name}` };
-                evmProvider.value = matchingProviderDetail.provider; // Store the provider
                 addLog(`Found EVM provider for ${walletEVMName} via EIP-6963.`);
             } else if (walletEVMName === 'Talisman' && window.talismanEth) {
                 evmProviderInfo = { provider: window.talismanEth, name: 'window.talismanEth' };
@@ -481,29 +385,16 @@ export function useSubstrateWallet(addLog) {
             }
 
             if (!evmProviderInfo) {
-                addLog(`Could not find an EVM provider for ${walletEVMName}.`);
+                addLog(`Could not find an EVM provider for ${walletEVMName}. EVM → Consensus transfers are disabled.`);
                 return;
             }
 
             const evmAccounts = await evmProviderInfo.provider.request({ method: 'eth_requestAccounts' });
             if (evmAccounts && evmAccounts.length > 0) {
                 substrateLinkedEvmAddress.value = evmAccounts[0];
+                linkedEvmProvider.value = markRaw(evmProviderInfo.provider);
                 addLog(`Successfully retrieved linked EVM address: ${evmAccounts[0]}`);
-                await getLinkedEvmBalance(evmAccounts[0]); // Fetch balance for the linked address
-
-                // ADDED: Create and configure the persistent evmApi instance
-                addLog('Creating persistent API instance for Auto-EVM domain...');
-                const rawEvmApi = await createApiInstance(EVM_RPC);
-                const AutoXDM = await import('@autonomys/auto-xdm');
-                const browserProvider = new BrowserProvider(evmProviderInfo.provider);
-                const ethersSigner = await browserProvider.getSigner(evmAccounts[0]);
-                const evmSigner = new AutoXDM.EvmSigner(rawEvmApi, evmAccounts[0], ethersSigner);
-                rawEvmApi.setSigner(evmSigner);
-
-                evmApi.value = markRaw(rawEvmApi);
-                addLog('Persistent Auto-EVM API instance created and signer attached.');
-
-
+                await getLinkedEvmBalance(evmAccounts[0]);
             } else {
                 addLog(`EVM provider for ${walletEVMName} did not return any accounts.`);
             }
@@ -512,7 +403,7 @@ export function useSubstrateWallet(addLog) {
         }
     };
 
-    // Connect Consensus wallet (updated with markRaw)
+    // Connect Consensus wallet
     const connect = async () => {
         try {
             addLog('Attempting to connect Consensus wallet...');
@@ -528,34 +419,16 @@ export function useSubstrateWallet(addLog) {
                 });
                 return;
             }
-            consensusAccount.value = allAccounts[0];
+            substrateAccounts.value = allAccounts;
+            await activateAccount(allAccounts[0]);
 
-            const publicKey = decodeAddress(consensusAccount.value.address);
-            consensusAddress.value = encodeAddress(publicKey, AUTONOMYS_PREFIX);
-
-            // Create signed API with custom types (Mainnet)
-            const rawApi = await createApiInstance(CONSENSUS_RPC);
-            consensusApi.value = markRaw(rawApi); // ADDED: markRaw to prevent Vue reactivity proxy on ApiPromise
-            // Attach extension signer
-            const injector = await web3FromAddress(consensusAccount.value.address);
-            if (!injector) {
-                throw new Error('No injector found for address');
-            }
-            consensusApi.value.setSigner(injector.signer);
-
+            // Linked EVM discovery is best-effort: failure must not fail the
+            // whole connection (C2E does not need it).
             await fetchLinkedEvmAddress(consensusAccount.value.meta.source);
-            const rawEvmApi = await createApiInstance(EVM_RPC);
-            evmApi.value = markRaw(rawEvmApi);
-            const evmInjector = await web3FromAddress(substrateLinkedEvmAddress.value);
-            if (!evmInjector) {
-                throw new Error('No injector found for EVM address');
-            }
-            evmApi.value.setSigner(evmInjector.signer);
 
             await updateBalance();
             addLog('Consensus connection successful');
             fetchTransactions();
-
         } catch (error) {
             console.error('Consensus connection failed:', error);
             addLog(`Consensus connection failed: ${error.message}`);
@@ -569,17 +442,62 @@ export function useSubstrateWallet(addLog) {
         }
     };
 
+    // Activate an extension account against the existing API (used by connect
+    // and by the account selector). APIs are chain-scoped, so switching
+    // accounts never recreates them — only the signer and derived state.
+    const activateAccount = async (account) => {
+        consensusAccount.value = account;
+        const publicKey = decodeAddress(account.address);
+        consensusAddress.value = encodeAddress(publicKey, AUTONOMYS_PREFIX);
+
+        if (!consensusApi.value) {
+            consensusApi.value = markRaw(await createApiInstance(CONSENSUS_RPC));
+        }
+        const injector = await web3FromAddress(account.address);
+        if (!injector) {
+            throw new Error('No injector found for address');
+        }
+        consensusApi.value.setSigner(injector.signer);
+        addLog(`Active account: ${account.meta?.name || ''} ${consensusAddress.value}`);
+    };
+
+    // Switch the active account (account selector in the wallet panel).
+    const switchAccount = async (account) => {
+        if (!account || !consensusApi.value || consensusAccount.value?.address === account.address) return;
+        try {
+            fetchedTransactions.value = [];
+            substrateLinkedEvmAddress.value = '';
+            substrateLinkedEvmBalance.value = '0';
+            linkedEvmProvider.value = null;
+            historyStatus.value = 'idle';
+
+            await activateAccount(account);
+            await fetchLinkedEvmAddress(account.meta.source);
+            await updateBalance();
+            fetchTransactions();
+        } catch (error) {
+            addLog(`Account switch failed: ${error.message}`);
+            ElNotification({
+                title: 'Account Switch Failed',
+                message: error.message,
+                type: 'error',
+                duration: 0,
+            });
+        }
+    };
+
     const disconnect = async () => {
         await disconnectApis();
         consensusAccount.value = null;
+        substrateAccounts.value = [];
         consensusBalance.value = 0;
         consensusAddress.value = '';
-        evmApi.value = null; // ADDED: Clear evmApi
-        substrateLinkedEvmAddress.value = ''; // ADDED: Clear the linked EVM address on disconnect
-        substrateLinkedEvmBalance.value = '0'; // ADDED: Clear the linked EVM balance
+        substrateLinkedEvmAddress.value = '';
+        substrateLinkedEvmBalance.value = '0';
         substrateLinkedEvmBalanceLoading.value = false;
-        evmProvider.value = null;
+        linkedEvmProvider.value = null;
         fetchedTransactions.value = [];
+        historyStatus.value = 'idle';
         // Note: We don't clear localStorage as consensus address isn't stored there.
         addLog('Consensus wallet disconnected and state cleared.');
     };
@@ -588,18 +506,21 @@ export function useSubstrateWallet(addLog) {
     return {
         // State
         consensusApi,
-        evmApi, // EXPOSED: Make the EVM API available
         readOnlyConsensusApi,
         consensusAccount,
+        substrateAccounts,
         consensusBalance,
         consensusBalanceLoading,
         consensusAddress,
-        substrateLinkedEvmAddress, // EXPOSED: Make the address available to components
-        substrateLinkedEvmBalance, // EXPOSED: Make the balance available
-        substrateLinkedEvmBalanceLoading, // EXPOSED: Make the loading state available
+        substrateLinkedEvmAddress,
+        substrateLinkedEvmBalance,
+        substrateLinkedEvmBalanceLoading,
+        linkedEvmProvider,
         fetchedTransactions,
+        historyStatus,
         // Actions
         connect,
+        switchAccount,
         updateBalance,
         fetchTransactions,
         initReadOnlyApi,
@@ -607,6 +528,6 @@ export function useSubstrateWallet(addLog) {
         disconnect,
         performConsensusTransfer,
         performEvmToConsensusTransfer,
-        getLinkedEvmBalance, // EXPOSED: Make the function available
+        getLinkedEvmBalance,
     };
 }

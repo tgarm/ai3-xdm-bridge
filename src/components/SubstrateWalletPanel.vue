@@ -19,6 +19,22 @@
         {{ t('wallet.reconnect') }}
       </el-tag>
     </el-button>
+    <div v-if="store.consensusConnected && store.substrateAccounts.length > 1" class="account-selector">
+      <el-select
+        :model-value="store.currentAccountAddress"
+        @change="store.switchConsensusAccount"
+        :placeholder="t('wallet.selectAccount')"
+        size="small"
+        style="width: 100%;"
+      >
+        <el-option
+          v-for="acc in store.substrateAccounts"
+          :key="acc.address"
+          :label="acc.label"
+          :value="acc.address"
+        />
+      </el-select>
+    </div>
     <div v-if="store.consensusAddress" class="balances-wrapper">
       <div class="balance-container">
         <el-skeleton :loading="store.consensusBalanceLoading" animated>
@@ -175,6 +191,9 @@ const refreshBalances = async () => {
 }
 .balance-container {
   margin-top: 15px;
+}
+.account-selector {
+  margin-top: 10px;
 }
 .balance {
   font-weight: bold;

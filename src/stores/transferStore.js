@@ -1,28 +1,35 @@
-// src/stores/transferStore.js (Updated)
+// src/stores/transferStore.js
 import { defineStore } from 'pinia';
 import { ElNotification, ElMessageBox } from 'element-plus';
-import { computed, ref } from 'vue';  // Added ref for pollInterval
-import { MIN_TRANSFER_AMOUNT, EVM_RPC, DECIMALS } from '@/constants';
+import { computed, ref } from 'vue';
+import { MIN_TRANSFER_AMOUNT } from '@/constants';
+import { parseAmountToWei } from '@/lib/amount';
 import { useTransferUi } from '@/composables/useTransferUi';
-import { useSubstrateWallet } from '@/composables/useSubstrateWallet';
+import { useSubstrateWallet, C2E_ARRIVAL_MS, E2C_CHALLENGE_MS } from '@/composables/useSubstrateWallet';
 import { useEvmWallet } from '@/composables/useEvmWallet';
 import { i18n } from '@/i18n';
 
+// C2E arrival watching: field test (2026-10-26) measured ~25 min; poll fast
+// during the documented window, then back off until the 30 min horizon.
+const ARRIVAL_POLL_FAST_MS = 30 * 1000; // first 10 minutes
+const ARRIVAL_POLL_SLOW_MS = 60 * 1000; // until the 30 min horizon
+const ARRIVAL_FAST_WINDOW_MS = 10 * 60 * 1000;
+// Fallback inclusion watch: if the WS subscription dies (public nodes drop
+// with 1006 routinely), scan the best chain for our extrinsic instead.
+const INCLUSION_WATCH_MS = 12 * 1000;
+const INCLUSION_WATCH_TIMEOUT_MS = 8 * 60 * 1000;
+
 export const useTransferStore = defineStore('transfer', () => {
   const { t } = i18n.global;
-  // Poll interval ref (for transfer completion)
-  const pollInterval = ref(null);
 
-  // Tx polling interval ref
-  const pollTxInterval = ref(null);
+  // Timer handles (one transfer at a time — isTransferring gates re-entry)
+  const arrivalTimer = ref(null);
+  const inclusionTimer = ref(null);
 
-  // Balance update timeout ref
-  const balanceUpdateTimeout = ref(null);
-
-  // Current status for button (new)
+  // Current status for button
   const currentStatus = ref('');
 
-  // Current pending hash for polling
+  // Current pending hash for tracking
   const currentPendingHash = ref(null);
 
   // Compose UI (exclude setAmount to avoid conflict)
@@ -77,6 +84,16 @@ export const useTransferStore = defineStore('transfer', () => {
   const substrateLinkedEvmAddressExposed = computed(() => substrate.substrateLinkedEvmAddress.value || '');
   const substrateLinkedEvmBalanceExposed = computed(() => substrate.substrateLinkedEvmBalance.value || '0');
   const substrateLinkedEvmBalanceLoadingExposed = computed(() => substrate.substrateLinkedEvmBalanceLoading.value);
+  const substrateAccountsExposed = computed(() => (substrate.substrateAccounts.value || []).map(acc => ({
+    address: acc.address,
+    label: `${acc.meta?.name || 'Account'} · ${consensusAddressOf(acc.address)}`,
+  })));
+  const currentAccountAddressExposed = computed(() => substrate.consensusAccount.value?.address || '');
+
+  function consensusAddressOf(address) {
+    // Short display form; full 6094 encoding happens in the wallet composable
+    return address ? `${address.slice(0, 4)}…${address.slice(-4)}` : '';
+  }
 
   // Update balances (both wallets restored)
   const updateBalances = async () => {
@@ -104,6 +121,12 @@ export const useTransferStore = defineStore('transfer', () => {
   // Disconnect EVM
   const disconnectEVM = () => evm.disconnect();
 
+  // Switch active Consensus account (account selector)
+  const switchConsensusAccount = (address) => {
+    const account = substrate.substrateAccounts.value.find(acc => acc.address === address);
+    if (account) substrate.switchAccount(account);
+  };
+
   // Toggle transfer direction
   const toggleDirection = () => {
     direction.value = direction.value === 'consensusToEVM' ? 'evmToConsensus' : 'consensusToEVM';
@@ -121,200 +144,184 @@ export const useTransferStore = defineStore('transfer', () => {
     }
   };
 
-  // Polling function for submitted tx after inBlock
-  const startPollingForTx = (expectedHash) => {
-    if (pollTxInterval.value) {
-      clearInterval(pollTxInterval.value);
-      pollTxInterval.value = null;
+  const stopArrivalWatch = () => {
+    if (arrivalTimer.value) {
+      clearTimeout(arrivalTimer.value);
+      arrivalTimer.value = null;
     }
-    let pollCount = 0;
-    const maxPolls = 12; // ~2 min at 10s intervals
-    pollTxInterval.value = setInterval(async () => {
-      await fetchTransactions();
-      addLog(`Polling for transaction (${pollCount}/${maxPolls})...expect hash: ${expectedHash}`);
-      const foundTx = substrate.fetchedTransactions.value.find(t => t.hash === expectedHash);
-      if (foundTx) {
-        addLog('Submitted transaction found in history');
-        const pendingTx = transactions.value.find(tx => tx.hash === expectedHash);
-        if (pendingTx) {
-          pendingTx.status = 'submitted';
-          // Merge details from foundTx
-          Object.assign(pendingTx, {
-            blockNumber: foundTx.blockNumber,
-            extrinsicIndex: foundTx.extrinsicIndex,
-            success: foundTx.success,
-            fee: foundTx.fee,
-            finalized: foundTx.finalized
-          });
-        }
-        clearInterval(pollTxInterval.value);
-        pollTxInterval.value = null;
-        currentPendingHash.value = null;
-        isTransferring.value = false;
-        currentStatus.value = '';
-      } else {
-        pollCount++;
-        addLog(`Polling for transaction (${pollCount}/${maxPolls})...`);
-        if (pollCount >= maxPolls) {
-          clearInterval(pollTxInterval.value);
-          pollTxInterval.value = null;
-          addLog('Polling for transaction timed out');
-          currentPendingHash.value = null;
-          isTransferring.value = false;
-          currentStatus.value = '';
-        }
-      }
-    }, 10000);
-    addLog('Started polling for submitted transaction (every 10s)');
   };
 
-  // Status update callback for transfer (updated to start EVM polling on C2E finalization)
+  const stopInclusionWatch = () => {
+    if (inclusionTimer.value) {
+      clearTimeout(inclusionTimer.value);
+      inclusionTimer.value = null;
+    }
+  };
+
+  // --- C2E arrival watch -------------------------------------------------
+  // Polls the linked EVM balance until it rises by (roughly) the transferred
+  // amount, or the 30 min horizon passes. Never reports a fake failure: on
+  // horizon expiry the transfer stays visible as "bridging" for manual refresh.
+  const startArrivalWatch = (pendingTx, amountNum) => {
+    stopArrivalWatch();
+    const baseline = parseFloat(substrate.substrateLinkedEvmBalance.value) || 0;
+    // XDM takes ~0.01% fee (1 AI3 → 0.9999); tolerate it in the comparison
+    const target = baseline + amountNum * 0.98;
+    const startedAt = Date.now();
+    addLog(`Watching linked EVM balance for arrival (baseline ${baseline} AI3, horizon 30 min)`);
+
+    const tick = async () => {
+      arrivalTimer.value = null;
+      if (substrate.substrateLinkedEvmAddress.value) {
+        await substrate.getLinkedEvmBalance(substrate.substrateLinkedEvmAddress.value);
+      }
+      const current = parseFloat(substrate.substrateLinkedEvmBalance.value) || 0;
+      if (current >= target) {
+        pendingTx.status = 'arrived';
+        addLog(`Funds arrived on Auto-EVM: ${current} AI3`);
+        ElNotification({
+          title: t('notifications.fundsArrived.title'),
+          message: t('notifications.fundsArrived.message', [current]),
+          type: 'success',
+          duration: 0,
+        });
+        stopArrivalWatch();
+        return;
+      }
+      const elapsed = Date.now() - startedAt;
+      if (elapsed >= C2E_ARRIVAL_MS) {
+        pendingTx.status = 'bridging';
+        addLog('Arrival horizon (30 min) reached without a detected balance change — XDM transfers can take longer. Use "Refresh Balance" or history to check again.');
+        ElNotification({
+          title: t('notifications.stillBridging.title'),
+          message: t('notifications.stillBridging.message'),
+          type: 'info',
+          duration: 0,
+        });
+        stopArrivalWatch();
+        return;
+      }
+      const interval = elapsed < ARRIVAL_FAST_WINDOW_MS ? ARRIVAL_POLL_FAST_MS : ARRIVAL_POLL_SLOW_MS;
+      arrivalTimer.value = setTimeout(tick, interval);
+    };
+    arrivalTimer.value = setTimeout(tick, ARRIVAL_POLL_FAST_MS);
+  };
+
+  // --- C2E inclusion watch (WS-status fallback) ---------------------------
+  // If no WS status event ever arrives (subscription silently lost on WS
+  // disconnect), scan the best chain for the submitted extrinsic hash. Found
+  // inclusion feeds the same pipeline as the WS inBlock event.
+  const startInclusionWatch = (initialHash, pendingTx) => {
+    stopInclusionWatch();
+    const api = substrate.consensusApi.value;
+    if (!api) return;
+    const deadline = Date.now() + INCLUSION_WATCH_TIMEOUT_MS;
+    let lastScanned = null;
+    addLog('Inclusion watch armed (fallback if websocket status events are lost)');
+
+    const tick = async () => {
+      inclusionTimer.value = null;
+      // WS already advanced the transfer — nothing to fall back for
+      if (pendingTx.status !== 'pending') return;
+      try {
+        const header = await api.rpc.chain.getHeader();
+        if (lastScanned === null) lastScanned = header.number.toNumber();
+        for (let h = lastScanned; h <= header.number.toNumber(); h++) {
+          const bh = await api.rpc.chain.getBlockHash(h);
+          if (bh.toHex() === '0x' + '0'.repeat(64)) continue; // transient fork boundary
+          const block = await api.rpc.chain.getBlock(bh.toHex());
+          const hit = block.block.extrinsics.find(ex => ex.hash.toHex() === initialHash);
+          if (hit) {
+            addLog(`Inclusion watch found the transfer in block #${h}`);
+            pendingTx.status = 'in block';
+            pendingTx.hash = initialHash;
+            pendingTx.blockNumber = h;
+            currentPendingHash.value = initialHash;
+            isTransferring.value = false;
+            currentStatus.value = '';
+            startArrivalWatch(pendingTx, parseFloat(pendingTx.amount));
+            return;
+          }
+        }
+        lastScanned = header.number.toNumber() + 1;
+      } catch (error) {
+        addLog(`Inclusion watch: ${error.message}`);
+      }
+      if (Date.now() >= deadline) {
+        addLog('Inclusion watch timed out — the transfer may still be in the tx pool. DO NOT resubmit with the same account/nonce (Subspace bans duplicates); check history later.');
+        ElNotification({
+          title: t('notifications.inclusionTimeout.title'),
+          message: t('notifications.inclusionTimeout.message'),
+          type: 'warning',
+          duration: 0,
+        });
+        isTransferring.value = false;
+        currentStatus.value = '';
+        currentPendingHash.value = null;
+        stopInclusionWatch();
+        return;
+      }
+      inclusionTimer.value = setTimeout(tick, INCLUSION_WATCH_MS);
+    };
+    inclusionTimer.value = setTimeout(tick, INCLUSION_WATCH_MS);
+  };
+
+  // Status update callback for the C2E WS subscription
   const handleTransferStatus = async ({ status }) => {
     if (status.type) {
       currentStatus.value = status.type.toLowerCase().replace(/([A-Z])/g, ' $1').trim();
     }
     if (status.isInBlock) {
+      stopInclusionWatch(); // WS delivered — fallback no longer needed
       addLog(`Transaction ${currentPendingHash.value} in block`);
       const pendingTx = transactions.value.find(tx => tx.hash === currentPendingHash.value);
       let finalHash = currentPendingHash.value;
 
-      if (direction.value === 'consensusToEVM') {
-        // For C2E, the extrinsic hash can change when it's included in a block.
-        // We need to find the extrinsic in the block to get its final hash.
-        const { block } = await substrate.consensusApi.value.rpc.chain.getBlock(status.asInBlock);
-        const extrinsic = block.extrinsics.find(ex => ex.isSigned && ex.signer.toString() === substrate.consensusAddress.value);
-        finalHash = extrinsic ? extrinsic.hash.toHex() : currentPendingHash.value; // Fallback to old hash
+      // For C2E, the extrinsic hash can change when it's included in a block.
+      // Locate our extrinsic inside the block to learn the final hash.
+      const { block } = await substrate.consensusApi.value.rpc.chain.getBlock(status.asInBlock);
+      const ours = block.extrinsics.find(ex =>
+        (ex.hash.toHex() === currentPendingHash.value) ||
+        (ex.isSigned && ex.signer.toString() === substrate.consensusAddress.value));
+      finalHash = ours ? ours.hash.toHex() : currentPendingHash.value; // Fallback to old hash
 
-        addLog(`Transaction in block. Final hash: ${finalHash}`);
+      addLog(`Transaction in block. Final hash: ${finalHash}`);
 
-        if (pendingTx) {
-          pendingTx.status = 'in block';
-          pendingTx.hash = finalHash; // Update the hash on our tracked transaction
-          currentPendingHash.value = finalHash; // Update the hash for subsequent polling
-        }
-
-        startPollingForTx(finalHash);
-      } else if (direction.value === 'evmToConsensus') {
-        // For E2C, 'in block' is the final state we can track from the source chain.
-        addLog('EVM -> Consensus transaction in block. Transfer initiated on source chain.');
-        ElMessageBox.alert(
-          t('transfer.e2cInBlock.message'),
-          t('transfer.e2cInBlock.title'),
-          {
-            confirmButtonText: t('transfer.e2cInBlock.confirmButton'),
-            callback: () => {
-              // Reset state after user confirms
-              isTransferring.value = false;
-              currentStatus.value = '';
-              currentPendingHash.value = null;
-              addLog('E2C UI reset. Ready for new transfer.');
-            }
-          }
-        );
+      if (pendingTx) {
+        pendingTx.status = 'in block';
+        pendingTx.hash = finalHash; // Update the hash on our tracked transaction
+        pendingTx.blockNumber = block.block.header.number.toNumber();
+        currentPendingHash.value = finalHash; // Update the hash for subsequent tracking
+        // Bridging starts at inclusion, not finality — start watching now
+        startArrivalWatch(pendingTx, parseFloat(pendingTx.amount));
       }
     }
     if (status.isFinalized) {
       addLog('Substrate transaction finalized, reload transactions');
       fetchTransactions();
       if (direction.value === 'consensusToEVM') {
-        // Update pending tx status if exists and log countdown info
-        const pendingTx = transactions.value.find(tx => (tx.status === 'pending' || tx.status === 'in block' || tx.status === 'submitted') && tx.hash === currentPendingHash.value);
-        if (pendingTx && pendingTx.expectedArrival) {
+        const pendingTx = transactions.value.find(tx => ['pending', 'in block', 'bridging'].includes(tx.status) && tx.hash === currentPendingHash.value);
+        if (pendingTx && ['pending', 'in block'].includes(pendingTx.status)) {
           pendingTx.status = 'finalized on consensus';
-          const arrivalDate = new Date(pendingTx.expectedArrival);
-          const timeLeftMs = arrivalDate.getTime() - Date.now();
-          const timeLeftMin = Math.max(0, Math.ceil(timeLeftMs / 60000));
-          addLog(`Consensus finalized! Funds expected on EVM in ~${timeLeftMin} minutes. Scheduling balance update...`);
-
-          // Schedule balance update at expected arrival time
-          if (balanceUpdateTimeout.value) {
-            clearTimeout(balanceUpdateTimeout.value);
-            balanceUpdateTimeout.value = null;
-          }
-          if (timeLeftMs > 0) {
-            balanceUpdateTimeout.value = setTimeout(async () => {
-              addLog('Estimated arrival time reached. Updating linked EVM balance...');
-              if (substrate.substrateLinkedEvmAddress.value) {
-                await substrate.getLinkedEvmBalance(substrate.substrateLinkedEvmAddress.value);
-              }
-              balanceUpdateTimeout.value = null;
-            }, timeLeftMs);
-          }
         }
-        // Start polling linked EVM balance for ~10 min as backup
-        if (pollInterval.value) {
-          clearInterval(pollInterval.value);
-          pollInterval.value = null;
-        }
-        let pollCount = 0;
-        const maxPolls = 20; // ~10 min at 30s intervals
-        pollInterval.value = setInterval(async () => {
-          if (substrate.substrateLinkedEvmAddress.value) {
-            await substrate.getLinkedEvmBalance(substrate.substrateLinkedEvmAddress.value);
-          }
-          addLog('Polling linked EVM balance for arrival...');
-          pollCount++;
-          if (pollCount >= maxPolls) {
-            clearInterval(pollInterval.value);
-            pollInterval.value = null;
-            addLog('Linked EVM balance polling completed (timeout)');
-          }
-        }, 30000);
-        addLog('Started linked EVM balance polling for C2E arrival');
       }
-      // Stop tx polling if running
-      if (pollTxInterval.value) {
-        clearInterval(pollTxInterval.value);
-        pollTxInterval.value = null;
-      }
-      currentPendingHash.value = null;
-      isTransferring.value = false;
-      currentStatus.value = '';
     }
     if (status.isRetracted) {
       addLog('Transaction retracted');
-      isTransferring.value = false;
-      currentStatus.value = '';
-      currentPendingHash.value = null;
-      if (pollTxInterval.value) {
-        clearInterval(pollTxInterval.value);
-        pollTxInterval.value = null;
-      }
-      if (pollInterval.value) {
-        clearInterval(pollInterval.value);
-        pollInterval.value = null;
-      }
-      if (balanceUpdateTimeout.value) {
-        clearTimeout(balanceUpdateTimeout.value);
-        balanceUpdateTimeout.value = null;
-      }
+      resetTransferState();
       ElNotification({
-        title: 'Transaction Retracted',
-        message: 'The transaction was retracted by the network. Please check your wallet and try again.',
+        title: t('notifications.retracted.title'),
+        message: t('notifications.retracted.message'),
         type: 'warning',
         duration: 0
       });
     }
     if (status.isFinalityTimeout) {
       addLog('Transaction finality timeout - may finalize later');
-      isTransferring.value = false;
-      currentStatus.value = '';
-      currentPendingHash.value = null;
-      if (pollTxInterval.value) {
-        clearInterval(pollTxInterval.value);
-        pollTxInterval.value = null;
-      }
-      if (pollInterval.value) {
-        clearInterval(pollInterval.value);
-        pollInterval.value = null;
-      }
-      if (balanceUpdateTimeout.value) {
-        clearTimeout(balanceUpdateTimeout.value);
-        balanceUpdateTimeout.value = null;
-      }
+      resetTransferState();
       ElNotification({
-        title: 'Transaction Timeout',
-        message: 'Finality timed out. It may still finalize, so please check your transaction history. If not, please retry.',
+        title: t('notifications.finalityTimeout.title'),
+        message: t('notifications.finalityTimeout.message'),
         type: 'warning',
         duration: 0
       });
@@ -322,71 +329,68 @@ export const useTransferStore = defineStore('transfer', () => {
     if (status.isDropped || status.isInvalid) {
       const statusMsg = status.type.toLowerCase();
       addLog(`Transaction ${statusMsg}`);
-      isTransferring.value = false;
-      currentStatus.value = '';
-      currentPendingHash.value = null;
-      if (pollTxInterval.value) {
-        clearInterval(pollTxInterval.value);
-        pollTxInterval.value = null;
-      }
-      if (pollInterval.value) {
-        clearInterval(pollInterval.value);
-        pollInterval.value = null;
-      }
-      if (balanceUpdateTimeout.value) {
-        clearTimeout(balanceUpdateTimeout.value);
-        balanceUpdateTimeout.value = null;
-      }
+      resetTransferState();
       ElNotification({
-        title: 'Transfer Failed',
-        message: `The transaction was ${statusMsg}. Please ensure you have sufficient balance and network connectivity, then try again.`,
+        title: t('notifications.transferFailed.title'),
+        message: t('notifications.transferFailed.message', [statusMsg]),
         type: 'error',
         duration: 0
       });
     }
   };
 
-  // Helper function to convert decimal string to BigInt with proper precision
-  const parseAmountToWei = (amountStr) => {
-    // Remove any commas or spaces
-    const cleanAmount = amountStr.replace(/[,\s]/g, '');
-    // Split by decimal point
-    const parts = cleanAmount.split('.');
-    if (parts.length > 2) {
-      throw new Error('Invalid amount format');
-    }
-    const integerPart = parts[0] || '0';
-    const decimalPart = parts[1] || '';
-
-    // Pad or truncate decimal part to match DECIMALS
-    const paddedDecimal = decimalPart.padEnd(Number(DECIMALS), '0').slice(0, Number(DECIMALS));
-
-    // Combine integer and decimal parts
-    const fullAmountStr = integerPart + paddedDecimal;
-
-    // Remove leading zeros
-    const trimmedAmountStr = fullAmountStr.replace(/^0+/, '') || '0';
-
-    return BigInt(trimmedAmountStr);
+  const resetTransferState = () => {
+    isTransferring.value = false;
+    currentStatus.value = '';
+    currentPendingHash.value = null;
+    stopInclusionWatch();
+    // The arrival watch keeps running across non-final status resets: a
+    // retracted/timeout notice refers to finality tracking, while the funds
+    // may still bridge. It stops itself at the 30 min horizon.
   };
 
-  // Perform transfer (orchestrates both, with polling) - substrate logic delegated (updated to set expectedArrival)
+  // Helper function to convert decimal string to BigInt with proper precision
+  // (implementation in @/lib/amount, unit-tested there)
+
+  // Mark an E2C transfer as received by hand (the 1-day challenge period is
+  // not tracked from chain data).
+  const markTransferComplete = (id) => {
+    const tx = transactions.value.find(tx => tx.id === id);
+    if (tx) {
+      tx.status = 'completed';
+      addLog(`Transfer ${tx.hash || tx.id} marked as received`);
+    }
+  };
+
+  // Perform transfer (orchestrates both, with polling) - substrate logic delegated
   const performTransfer = async () => {
     const amountNum = parseFloat(amount.value);
     if (!amount.value || amountNum < MIN_TRANSFER_AMOUNT) {
       addLog('Amount below minimum transfer amount');
       ElNotification({
-        title: 'Invalid Amount',
-        message: `The minimum transfer amount is ${MIN_TRANSFER_AMOUNT} AI3. Please enter a valid amount to proceed.`,
+        title: t('notifications.invalidAmount.title'),
+        message: t('notifications.invalidAmount.message', [MIN_TRANSFER_AMOUNT]),
         type: 'warning',
         duration: 5000
       });
       return;
     }
-    const amountWei = parseAmountToWei(amount.value);
+    let amountWei;
+    try {
+      amountWei = parseAmountToWei(amount.value);
+    } catch (error) {
+      addLog(`Invalid amount: ${error.message}`);
+      ElNotification({
+        title: t('notifications.invalidAmount.title'),
+        message: t('transfer.amountPrecision'),
+        type: 'warning',
+        duration: 5000
+      });
+      return;
+    }
     const transferTime = new Date();
-    const estimatedTimeMs = direction.value === 'consensusToEVM' ? 10 * 60 * 1000 : 24 * 60 * 60 * 1000; // E2C is ~1 day
-    const estimatedTime = direction.value === 'consensusToEVM' ? '~10 min' : '~1 day';
+    const estimatedTime = direction.value === 'consensusToEVM' ? '~10–30 min' : '~1 day (challenge period)';
+    const estimatedTimeMs = direction.value === 'consensusToEVM' ? C2E_ARRIVAL_MS : E2C_CHALLENGE_MS;
     const newTx = {
       id: Date.now(),  // Simple ID for tracking
       hash: null, // Will be set later
@@ -433,8 +437,8 @@ export const useTransferStore = defineStore('transfer', () => {
         if (!substrate.consensusApi?.value || !evm.evmAddress.value) {
           addLog('Missing Consensus API or EVM address for transfer');
           ElNotification({
-            title: 'Wallets Not Connected',
-            message: 'Please connect both your Consensus and EVM wallets to proceed with the transfer.',
+            title: t('notifications.walletsNotConnected.title'),
+            message: t('notifications.walletsNotConnected.message'),
             type: 'error',
             duration: 0
           });
@@ -457,44 +461,55 @@ export const useTransferStore = defineStore('transfer', () => {
         newTx.unsubscribe = unsubscribe; // Track for cleanup if needed
         currentPendingHash.value = hash;
         addLog('Consensus transfer delegated and initiated');
-      } else { // evmToConsensus
-        addLog('Creating EVM to Consensus transfer...');
+        // Fallback: if WS status events are lost, find inclusion by scanning
+        startInclusionWatch(hash, newTx);
+      } else { // evmToConsensus via transporter precompile
+        if (!substrate.linkedEvmProvider?.value || !substrate.substrateLinkedEvmAddress.value) {
+          addLog('Linked EVM provider not available for E2C transfer');
+          ElNotification({
+            title: t('notifications.walletsNotConnected.title'),
+            message: t('notifications.e2cProviderMissing'),
+            type: 'error',
+            duration: 0
+          });
+          newTx.status = 'failed';
+          return;
+        }
+        addLog('Creating EVM to Consensus transfer (transporter precompile)...');
         isTransferring.value = true;
-        currentStatus.value = 'pending';
-        currentPendingHash.value = null; // Reset
+        currentStatus.value = 'sending';
 
-        const { unsubscribe, hash } = await substrate.performEvmToConsensusTransfer(
+        const { hash } = await substrate.performEvmToConsensusTransfer(
           substrate.consensusAddress.value,
-          amountWei,
-          handleTransferStatus
+          amountWei
         );
 
         newTx.hash = hash;
-        newTx.unsubscribe = unsubscribe;
-        currentPendingHash.value = hash;
-        addLog(`EVM to Consensus transfer delegated and initiated. direction: ${direction.value}`);
+        newTx.status = 'bridging';
+        isTransferring.value = false;
+        currentStatus.value = '';
+        addLog(`EVM to Consensus transfer confirmed on Auto-EVM: ${hash}. Challenge period ~1 day before funds land on Consensus.`);
+        ElMessageBox.alert(
+          t('transfer.e2cConfirmed.message', [amount.value, substrate.consensusAddress.value]),
+          t('transfer.e2cConfirmed.title'),
+          { confirmButtonText: t('transfer.e2cConfirmed.confirmButton') }
+        );
       }
     } catch (error) {
       newTx.status = 'failed';
       isTransferring.value = false;
       currentStatus.value = '';
       currentPendingHash.value = null;
-      if (pollTxInterval.value) {
-        clearInterval(pollTxInterval.value);
-        pollTxInterval.value = null;
-      }
-      if (pollInterval.value) {
-        clearInterval(pollInterval.value);
-        pollInterval.value = null;
-      }
+      stopInclusionWatch();
+      stopArrivalWatch();
       if (newTx.unsubscribe) {
         newTx.unsubscribe();  // Cleanup if initiated
       }
       addLog(`Transfer failed: ${error.message}`);
       console.error('Transfer failed:', error);
       ElNotification({
-        title: 'Transfer Initiation Failed',
-        message: `${error.message}. Please ensure both wallets are connected, you have sufficient balance, and try again.`,
+        title: t('notifications.transferInitFailed.title'),
+        message: `${error.message}. ${t('notifications.transferInitFailed.hint')}`,
         type: 'error',
         duration: 0
       });
@@ -522,18 +537,8 @@ export const useTransferStore = defineStore('transfer', () => {
   // Cleanup on store destroy (optional, for dev)
   // You can call this in a global onUnmounted if needed
   const stopPolling = () => {
-    if (pollInterval.value) {
-      clearInterval(pollInterval.value);
-      pollInterval.value = null;
-    }
-    if (pollTxInterval.value) {
-      clearInterval(pollTxInterval.value);
-      pollTxInterval.value = null;
-    }
-    if (balanceUpdateTimeout.value) {
-      clearTimeout(balanceUpdateTimeout.value);
-      balanceUpdateTimeout.value = null;
-    }
+    stopArrivalWatch();
+    stopInclusionWatch();
   };
 
   return {
@@ -553,6 +558,9 @@ export const useTransferStore = defineStore('transfer', () => {
     canPrepareFunds, // The funding action
     allFetchedTransactions,
     currentStatus,  // New
+    historyStatus: computed(() => substrate.historyStatus.value),
+    substrateAccounts: substrateAccountsExposed,
+    currentAccountAddress: currentAccountAddressExposed,
     // Orchestrated Actions
     updateBalances,
     fetchTransactions,
@@ -560,8 +568,10 @@ export const useTransferStore = defineStore('transfer', () => {
     connectEVM,
     disconnectConsensus,
     disconnectEVM,
+    switchConsensusAccount,
     toggleDirection,
     performTransfer,
+    markTransferComplete,
     stopPolling,  // Expose for cleanup if needed
     minTransferAmount: MIN_TRANSFER_AMOUNT,
     // Wallet States (exposed as computed strings/booleans for easier use in components)
