@@ -15,8 +15,10 @@ import * as evm from './evmWallet';
 
 export { C2E_ARRIVAL_MS, E2C_CHALLENGE_MS, clearLogs };
 
-// Timer handles (one transfer at a time — isTransferring gates re-entry)
-let arrivalTimer = null;
+// Timer handles. Arrival watches are keyed by tx id: persisted transfers
+// resumed at boot can be several at once. (One transfer at a time is still
+// gated by isTransferring for NEW transfers.)
+const arrivalTimers = new Map(); // tx.id → timer handle
 let inclusionTimer = null;
 let currentPendingHash = null;
 
@@ -130,11 +132,15 @@ const ARRIVAL_FAST_WINDOW_MS = 10 * 60 * 1000;
 const INCLUSION_WATCH_MS = 12 * 1000;
 const INCLUSION_WATCH_TIMEOUT_MS = 8 * 60 * 1000;
 
-const stopArrivalWatch = () => {
-  if (arrivalTimer) {
-    clearTimeout(arrivalTimer);
-    arrivalTimer = null;
+const stopArrivalWatch = (tx) => {
+  if (tx) {
+    const t = arrivalTimers.get(tx.id);
+    if (t) clearTimeout(t);
+    arrivalTimers.delete(tx.id);
+    return;
   }
+  for (const t of arrivalTimers.values()) clearTimeout(t);
+  arrivalTimers.clear();
 };
 
 const stopInclusionWatch = () => {
@@ -144,16 +150,26 @@ const stopInclusionWatch = () => {
   }
 };
 
-const startArrivalWatch = (pendingTx, amountNum) => {
-  stopArrivalWatch();
-  const baseline = parseFloat(state.substrateLinkedEvmBalance) || 0;
+const startArrivalWatch = (pendingTx, amountNum, { quiet = false } = {}) => {
+  stopArrivalWatch(pendingTx);
+  // Baseline and start time are persisted with the tx so a resumed watch
+  // compares against the ORIGINAL pre-transfer balance and keeps the
+  // original 30 min horizon (funds that landed while the tab was closed
+  // are detected as arrived on the first tick).
+  if (pendingTx.arrivalBaseline == null) {
+    pendingTx.arrivalBaseline = parseFloat(state.substrateLinkedEvmBalance) || 0;
+  }
+  if (pendingTx.arrivalWatchStart == null) {
+    pendingTx.arrivalWatchStart = Date.now();
+  }
+  const baseline = pendingTx.arrivalBaseline;
+  const startedAt = pendingTx.arrivalWatchStart;
   // XDM takes ~0.01% fee (1 AI3 → 0.9999); tolerate it in the comparison
   const target = baseline + amountNum * 0.98;
-  const startedAt = Date.now();
   addLog(`Watching linked EVM balance for arrival (baseline ${baseline} AI3, horizon 30 min)`);
 
   const tick = async () => {
-    arrivalTimer = null;
+    arrivalTimers.delete(pendingTx.id);
     if (state.substrateLinkedEvmAddress) {
       await substrate.getLinkedEvmBalance(state.substrateLinkedEvmAddress);
     }
@@ -168,7 +184,7 @@ const startArrivalWatch = (pendingTx, amountNum) => {
         message: t('notifications.fundsArrived.message', [current]),
         duration: 0,
       });
-      stopArrivalWatch();
+      stopArrivalWatch(pendingTx);
       return;
     }
     const elapsed = Date.now() - startedAt;
@@ -176,31 +192,35 @@ const startArrivalWatch = (pendingTx, amountNum) => {
       pendingTx.status = 'bridging';
       commit();
       addLog('Arrival horizon (30 min) reached without a detected balance change — XDM transfers can take longer. Use "Refresh Balance" or history to check again.');
-      toast({
-        type: 'info',
-        title: t('notifications.stillBridging.title'),
-        message: t('notifications.stillBridging.message'),
-        duration: 0,
-      });
-      stopArrivalWatch();
+      if (!quiet) {
+        toast({
+          type: 'info',
+          title: t('notifications.stillBridging.title'),
+          message: t('notifications.stillBridging.message'),
+          duration: 0,
+        });
+      }
+      stopArrivalWatch(pendingTx);
       return;
     }
     const interval = elapsed < ARRIVAL_FAST_WINDOW_MS ? ARRIVAL_POLL_FAST_MS : ARRIVAL_POLL_SLOW_MS;
-    arrivalTimer = setTimeout(tick, interval);
+    arrivalTimers.set(pendingTx.id, setTimeout(tick, interval));
   };
-  arrivalTimer = setTimeout(tick, ARRIVAL_POLL_FAST_MS);
+  arrivalTimers.set(pendingTx.id, setTimeout(tick, ARRIVAL_POLL_FAST_MS));
 };
 
 // --- C2E inclusion watch (WS-status fallback) ---------------------------
 // If no WS status event ever arrives (subscription silently lost on WS
 // disconnect), scan the best chain for the submitted extrinsic hash. Found
-// inclusion feeds the same pipeline as the WS inBlock event.
-const startInclusionWatch = (initialHash, pendingTx) => {
+// inclusion feeds the same pipeline as the WS inBlock event. fromHeight
+// (persisted submit block) lets a resumed watch catch up after a reload;
+// the 8 min deadline bounds the scan either way.
+const startInclusionWatch = (initialHash, pendingTx, fromHeight = null) => {
   stopInclusionWatch();
   const api = state.consensusApi;
   if (!api) return;
   const deadline = Date.now() + INCLUSION_WATCH_TIMEOUT_MS;
-  let lastScanned = null;
+  let lastScanned = fromHeight;
   addLog('Inclusion watch armed (fallback if websocket status events are lost)');
 
   const tick = async () => {
@@ -297,6 +317,7 @@ const handleTransferStatus = async ({ status }) => {
     if (pendingTx) {
       pendingTx.status = 'in block';
       pendingTx.hash = finalHash; // Update the hash on our tracked transaction
+      pendingTx.blockHash = status.asInBlock;
       currentPendingHash = finalHash; // Update the hash for subsequent tracking
       commit();
       // Bridging starts at inclusion, not finality — start watching now
@@ -465,6 +486,17 @@ export const performTransfer = async () => {
       currentPendingHash = null; // Reset
       commit();
 
+      // Record the submit height so a reloaded app can resume the inclusion
+      // scan from here (one paced RPC call, worth it for cross-session
+      // progress tracking).
+      try {
+        const header = await state.consensusApi.rpc.chain.getHeader();
+        newTx.submitBlock = header.number.toNumber();
+        commit();
+      } catch (e) {
+        addLog(`Could not read submit height (resume scan will start from head): ${e.message}`);
+      }
+
       // Delegate to the substrate module (moved logic)
       const { unsubscribe, hash } = await substrate.performConsensusTransfer(
         state.evmAddress,
@@ -521,7 +553,7 @@ export const performTransfer = async () => {
     currentPendingHash = null;
     commit();
     stopInclusionWatch();
-    stopArrivalWatch();
+    stopArrivalWatch(newTx);
     if (newTx.unsubscribe) {
       newTx.unsubscribe();  // Cleanup if initiated
     }
@@ -536,10 +568,40 @@ export const performTransfer = async () => {
   }
 };
 
+// Resume tracking for transfers persisted from a previous session: progress
+// follows the chain (block scan + destination balance polling), never Subscan.
+const resumeTracking = () => {
+  for (const tx of state.transactions) {
+    if (!['pending', 'in block', 'bridging'].includes(tx.status)) continue;
+    if (tx.status === 'pending' && tx.hash && tx.direction === 'consensusToEVM') {
+      // Inclusion scanning needs a consensus API, which only exists after
+      // the wallet connects; fresh loads don't have one. The tx stays
+      // 'pending' in history for inspection — never auto-resubmit (Subspace
+      // bans duplicate nonces).
+      const api = state.consensusApi || state.readOnlyConsensusApi;
+      if (api) {
+        addLog(`Resuming inclusion watch for transfer ${tx.hash.slice(0, 10)}…`);
+        startInclusionWatch(tx.hash, tx, tx.submitBlock ?? null);
+      } else {
+        addLog(`Transfer ${tx.hash.slice(0, 10)}… still awaiting inclusion — connect the Consensus wallet to rescan blocks for it.`);
+      }
+    } else if (tx.direction === 'consensusToEVM' && ['in block', 'bridging'].includes(tx.status)) {
+      // Arrival polling is a plain eth_getBalance against the public EVM
+      // RPC — works without any connected wallet.
+      addLog(`Resuming arrival watch for transfer ${tx.hash ? tx.hash.slice(0, 10) + '…' : tx.id}`);
+      startArrivalWatch(tx, parseFloat(tx.amount), { quiet: true });
+    }
+    // E2C 'bridging': the ~24h challenge period is calendar time — the
+    // countdown resumes from expectedArrival and arrival is confirmed by
+    // hand (mark received). Nothing to poll.
+  }
+};
+
 // Init APIs & initial fetches if addresses loaded (call once at startup)
 export const initEngine = () => {
   substrate.initReadOnlyApi();
   evm.initProvider();
+  resumeTracking();
   if (state.consensusAddress || state.evmAddress) {
     updateBalances();
     fetchTransactions();
@@ -547,6 +609,6 @@ export const initEngine = () => {
 };
 
 export const stopPolling = () => {
-  stopArrivalWatch();
+  stopArrivalWatch(); // no arg → every resumed watch
   stopInclusionWatch();
 };

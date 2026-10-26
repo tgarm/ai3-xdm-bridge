@@ -442,13 +442,14 @@ export const connect = async () => {
         state.substrateAccounts = allAccounts;
         await activateAccount(allAccounts[0]);
 
-        // Linked EVM discovery is best-effort: failure must not fail the
-        // whole connection (C2E does not need it).
-        await fetchLinkedEvmAddress(state.consensusAccount.meta.source);
-
+        // Balance and history first: plain RPC reads that must not wait on
+        // the extension. Linked-EVM discovery runs AFTER, un-awaited — its
+        // eth_requestAccounts blocks on the unlock prompt when the wallet
+        // is locked, and hanging there used to leave the balance at 0.
         await updateBalance();
         addLog('Consensus connection successful');
         fetchTransactions();
+        fetchLinkedEvmAddress(state.consensusAccount.meta.source).catch(() => {});
     } catch (error) {
         console.error('Consensus connection failed:', error);
         addLog(`Consensus connection failed: ${error.message}`);
@@ -495,9 +496,9 @@ export const switchAccount = async (account) => {
         commit();
 
         await activateAccount(account);
-        await fetchLinkedEvmAddress(account.meta.source);
         await updateBalance();
         fetchTransactions();
+        fetchLinkedEvmAddress(account.meta.source).catch(() => {});
     } catch (error) {
         addLog(`Account switch failed: ${error.message}`);
         toast({

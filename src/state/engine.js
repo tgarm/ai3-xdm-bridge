@@ -10,6 +10,39 @@ import { useSyncExternalStore } from 'react';
 const MAX_LOGS = 100;
 let logCounter = 0;
 
+// Local transfer tracking persists across sessions (localStorage): progress
+// follows the chain (inclusion watch + arrival polling), not Subscan.
+const TX_STORE_KEY = 'xdmLocalTxs';
+const TX_PERSIST_FIELDS = [
+  'id', 'hash', 'direction', 'amount', 'status', 'estimatedTime',
+  'expectedArrival', 'timestamp', 'blockNumber', 'blockHash',
+  'submitBlock', 'arrivalBaseline', 'arrivalWatchStart',
+];
+
+function loadLocalTxs() {
+  try {
+    const arr = JSON.parse(localStorage.getItem(TX_STORE_KEY) || '[]');
+    return Array.isArray(arr) ? arr.filter((t) => t && t.id) : [];
+  } catch {
+    return [];
+  }
+}
+
+function persistTxs() {
+  try {
+    const slim = state.transactions.map((tx) => {
+      const out = {};
+      for (const f of TX_PERSIST_FIELDS) {
+        if (tx[f] !== undefined) out[f] = tx[f];
+      }
+      return out;
+    });
+    localStorage.setItem(TX_STORE_KEY, JSON.stringify(slim));
+  } catch {
+    // quota/full — tracking degrades to in-memory, nothing to do
+  }
+}
+
 export const state = {
   // Transfer UI
   logs: [],
@@ -17,7 +50,7 @@ export const state = {
   direction: 'consensusToEVM',
   isTransferring: false,
   currentStatus: '',
-  transactions: [], // local tracked transfers (pending → bridging → arrived)
+  transactions: loadLocalTxs(), // local tracked transfers (pending → bridging → arrived)
   // Substrate wallet
   consensusApi: null, // signed API
   readOnlyConsensusApi: null,
@@ -44,6 +77,7 @@ const listeners = new Set();
 
 export function commit() {
   snapshot = { ...state };
+  persistTxs();
   listeners.forEach((fn) => fn());
 }
 
