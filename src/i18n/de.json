@@ -207,6 +207,8 @@
   "progress": {
     "title": "Fortschritt",
     "empty": "Keine Übertragungen unterwegs. Gestartete Übertragungen erscheinen hier in Echtzeit.",
-    "viewOnSubscan": "Vollständiger Verlauf auf Subscan"
+    "viewOnSubscan": "Vollständiger Verlauf auf Subscan",
+    "doneExpand": "Abgeschlossene anzeigen (C2E {0} · E2C {1})",
+    "doneCollapse": "Abgeschlossene ausblenden"
   }
 }

@@ -207,6 +207,8 @@
   "progress": {
     "title": "进度",
     "empty": "暂无进行中的转账。发起转账后会在这里实时显示。",
-    "viewOnSubscan": "在 Subscan 查看全部历史"
+    "viewOnSubscan": "在 Subscan 查看全部历史",
+    "doneExpand": "展开已到账（C2E {0} 笔 · E2C {1} 笔）",
+    "doneCollapse": "收起已到账"
   }
 }

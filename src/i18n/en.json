@@ -207,6 +207,8 @@
   "progress": {
     "title": "Progress",
     "empty": "No transfers in flight. Transfers you start will show up here in real time.",
-    "viewOnSubscan": "Full history on Subscan"
+    "viewOnSubscan": "Full history on Subscan",
+    "doneExpand": "Show completed (C2E {0} · E2C {1})",
+    "doneCollapse": "Hide completed"
   }
 }

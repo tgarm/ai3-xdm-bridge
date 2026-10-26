@@ -207,6 +207,8 @@
   "progress": {
     "title": "Progreso",
     "empty": "Ninguna transferencia en curso. Las que inicie aparecerán aquí en tiempo real.",
-    "viewOnSubscan": "Historial completo en Subscan"
+    "viewOnSubscan": "Historial completo en Subscan",
+    "doneExpand": "Mostrar completadas (C2E {0} · E2C {1})",
+    "doneCollapse": "Ocultar completadas"
   }
 }

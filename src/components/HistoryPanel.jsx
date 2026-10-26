@@ -23,6 +23,7 @@ const directionKey = (tx) => ({
 function statusBadge(tx) {
   if (tx.success === true) return 'ok';
   if (tx.success === false) return 'danger';
+  if (tx.status === 'failed') return 'danger';
   if (['pending', 'in block', 'bridging', 'sending'].includes(tx.status)) return 'warn';
   if (['arrived', 'completed', 'success', 'finalized on consensus'].includes(tx.status)) return 'ok';
   return 'info';
@@ -35,7 +36,12 @@ const STATUS_KEY = {
   arrived: 'Arrived',
   completed: 'Completed',
   'finalized on consensus': 'Finalized',
+  failed: 'Failed',
 };
+
+// Transfers that reached their destination — collapsed into a count summary
+// by default, expandable on click.
+const DONE_STATUSES = new Set(['arrived', 'completed']);
 
 function statusText(tx, t) {
   if (tx.success === true) return t('history.statusValues.Success');
@@ -54,15 +60,26 @@ export function HistoryPanel() {
   const { t, locale } = useI18n();
   const [isLoading, setIsLoading] = useState(false);
   const [now, setNow] = useState(Date.now());
+  const [showDone, setShowDone] = useState(false);
 
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(interval);
   }, []);
 
-  const list = useMemo(() =>
-    [...s.transactions].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)),
+  // Cancelled in the wallet before broadcast (status 'failed', no hash) is
+  // tracking noise — never shown. Completed transfers collapse into a count
+  // summary with only the latest one visible.
+  const meaningful = useMemo(() =>
+    [...s.transactions]
+      .filter(tx => !(tx.status === 'failed' && !tx.hash))
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)),
   [s.transactions]);
+  const inFlight = meaningful.filter(tx => !DONE_STATUSES.has(tx.status));
+  const done = meaningful.filter(tx => DONE_STATUSES.has(tx.status));
+  const visibleDone = showDone ? done : done.slice(0, 1);
+  const doneC2e = done.filter(tx => tx.direction === 'consensusToEVM').length;
+  const rows = [...inFlight, ...visibleDone];
 
   const refresh = async () => {
     setIsLoading(true);
@@ -144,11 +161,11 @@ export function HistoryPanel() {
         </span>
       </div>
 
-      {list.length === 0 ? (
+      {rows.length === 0 ? (
         <p className="empty-state">{t('progress.empty')}</p>
       ) : (
         <div className="tx-list">
-          {list.map((tx, index) => (
+          {rows.map((tx, index) => (
             <div className="tx" key={tx.hash || `local-${tx.id}` || index}>
               <div className="tx-head">
                 <span className="tx-amount">
@@ -202,6 +219,17 @@ export function HistoryPanel() {
               )}
             </div>
           ))}
+          {done.length > 1 && (
+            <button
+              className="btn link"
+              style={{ alignSelf: 'center' }}
+              onClick={() => setShowDone(v => !v)}
+            >
+              {showDone
+                ? t('progress.doneCollapse')
+                : t('progress.doneExpand', [doneC2e, done.length - doneC2e])}
+            </button>
+          )}
         </div>
       )}
     </div>
