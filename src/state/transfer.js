@@ -587,6 +587,14 @@ export const markTransferComplete = (id) => {
 
 // Perform transfer (orchestrates both wallets, with polling)
 export const performTransfer = async () => {
+  // Defense in depth: the button is disabled while a transfer is in flight,
+  // but a double-Enter on the amount input or a stale click must not
+  // double-submit (same-nonce duplicates get the account temporarily banned
+  // on Subspace).
+  if (state.isTransferring) {
+    addLog('Transfer already in flight — duplicate trigger ignored');
+    return;
+  }
   const amountNum = parseFloat(state.amount);
   if (!state.amount || amountNum < MIN_TRANSFER_AMOUNT) {
     addLog('Amount below minimum transfer amount');

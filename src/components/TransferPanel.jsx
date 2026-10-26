@@ -56,7 +56,10 @@ export function TransferPanel() {
     else if (amountNum > srcBal) reason = 'transfer.insufficientBalance';
   }
 
-  const enabled = s.isTransferring || canTransfer(s);
+  // canTransfer is false while a transfer is in flight — the button must be
+  // disabled then (a second click would double-submit). It still shows the
+  // live status label ("Broadcasting" etc.) as its caption.
+  const enabled = canTransfer(s);
   const label = s.isTransferring
     ? (statusLabel(s.currentStatus, t) || t('transfer.buttonTransferring'))
     : t('transfer.button');
