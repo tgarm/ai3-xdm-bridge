@@ -15,6 +15,7 @@ import { CONSENSUS_RPC, AUTONOMYS_PREFIX, DECIMALS, DOMAIN_ID, EVM_RPC_HTTPS } f
 import { state, commit, addLog } from './engine';
 import { toast } from '@/ui/dialogs';
 import { t } from '@/i18n';
+import { ensureCorrectNetwork } from './evmWallet';
 
 const disconnectApis = async () => {
     if (state.consensusApi) {
@@ -136,27 +137,35 @@ export const performConsensusTransfer = async (evmAddress, amountWei, onStatusUp
 // auto-xdm's transferToConsensus sends a plain Ethereum tx to the
 // precompile (transfer_to_consensus_v1(bytes32,uint256)); the precompile
 // is deployed on Auto-EVM mainnet (min transfer 1 AI3, verified 2026-10-26).
-// This needs only an EVM signer from the linked wallet — no Auto-EVM
-// Substrate API instance.
-export const performEvmToConsensusTransfer = async (consensusDestAddress, amountWei, onStatusUpdate) => {
-    if (!state.linkedEvmProvider) {
-        throw new Error('Linked EVM provider not available. Connect a Substrate wallet with EVM support (SubWallet/Talisman) to transfer EVM → Consensus.');
-    }
-    if (!state.substrateLinkedEvmAddress) {
-        throw new Error('Linked EVM address unknown; cannot sign the precompile transfer.');
-    }
-
-    addLog(`=== E2C Transfer (transporter precompile) ===`);
+// The signer is ANY EVM address with funds — the injected browser wallet
+// (funds may have arrived from anywhere) or the Substrate-linked account.
+// `src` comes from transfer.e2cSource(): { kind: 'injected'|'linked', from }.
+export const performE2CTransfer = async (src, consensusDestAddress, amountWei, onStatusUpdate) => {
+    addLog(`=== E2C Transfer (transporter precompile, ${src.kind} source) ===`);
+    addLog(`Source EVM Address: ${src.from}`);
     addLog(`Destination Consensus Address: ${consensusDestAddress}`);
     addLog(`Amount (Wei): ${amountWei}`);
-    addLog(`Source EVM Address: ${state.substrateLinkedEvmAddress}`);
 
     try {
         const { transferToConsensus } = await import('@autonomys/auto-xdm');
         addLog('Auto-XDM precompile helper imported.');
 
-        const browserProvider = new BrowserProvider(state.linkedEvmProvider);
-        const signer = await browserProvider.getSigner(state.substrateLinkedEvmAddress);
+        let signer;
+        if (src.kind === 'linked') {
+            if (!state.linkedEvmProvider) {
+                throw new Error('Linked EVM provider not available.');
+            }
+            const browserProvider = new BrowserProvider(state.linkedEvmProvider);
+            signer = await browserProvider.getSigner(src.from);
+        } else {
+            if (!state.evmProvider) {
+                throw new Error('EVM wallet not connected.');
+            }
+            // The precompile lives on Auto-EVM — make sure the injected
+            // wallet is on chain 870 (adds/switches the network if needed).
+            await evm.ensureCorrectNetwork();
+            signer = await state.evmProvider.getSigner(src.from);
+        }
 
         addLog('Sending precompile transaction... (check wallet for signature prompt)');
         const result = await transferToConsensus(signer, consensusDestAddress, amountWei, { confirmations: 1 });
@@ -200,7 +209,7 @@ export const getLinkedEvmBalance = async (evmAddress) => {
     } catch (error) {
         addLog(`Error updating linked EVM balance: ${error.message}`);
         console.error('Linked EVM balance update failed:', error);
-        state.substrateLinkedEvmBalance = '0'; // Reset on error
+        state.substrateLinkedEvmBalance = null; // Unknown on error — UI shows '—'
         commit();
     } finally {
         state.substrateLinkedEvmBalanceLoading = false;
@@ -348,7 +357,7 @@ export const switchAccount = async (account) => {
     if (!account || !state.consensusApi || state.consensusAccount?.address === account.address) return;
     try {
         state.substrateLinkedEvmAddress = '';
-        state.substrateLinkedEvmBalance = '0';
+        state.substrateLinkedEvmBalance = null;
         state.linkedEvmProvider = null;
         commit();
 
@@ -370,10 +379,10 @@ export const disconnect = async () => {
     await disconnectApis();
     state.consensusAccount = null;
     state.substrateAccounts = [];
-    state.consensusBalance = 0;
+    state.consensusBalance = null;
     state.consensusAddress = '';
     state.substrateLinkedEvmAddress = '';
-    state.substrateLinkedEvmBalance = '0';
+    state.substrateLinkedEvmBalance = null;
     state.substrateLinkedEvmBalanceLoading = false;
     state.linkedEvmProvider = null;
     commit();

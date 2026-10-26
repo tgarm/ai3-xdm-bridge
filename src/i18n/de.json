@@ -52,7 +52,7 @@
       "title": "Übertragung konnte nicht gestartet werden",
       "hint": "Bitte stellen Sie sicher, dass beide Wallets verbunden sind und ausreichend Guthaben vorhanden ist, und versuchen Sie es erneut."
     },
-    "e2cProviderMissing": "Die verknüpfte EVM-Wallet (EVM-Konto von SubWallet/Talisman) ist nicht verfügbar. E2C-Übertragungen werden über das Transporter-Precompile von diesem Konto gesendet.",
+    "e2cProviderMissing": "Keine nutzbare EVM-Quelle. Verbinden Sie MetaMask oder ein SubWallet/Talisman-Konsenskonto mit EVM-Konto.",
     "noConsensusAccounts": {
       "title": "Keine Konsens-Konten gefunden",
       "message": "Installieren und entsperren Sie eine Substrate-Wallet-Erweiterung (SubWallet oder Talisman), laden Sie neu und versuchen Sie es erneut."
@@ -121,7 +121,6 @@
     "receive": "Voraussichtlicher Empfang ≈ {0} AI3 (XDM-Gebühr ca. 0,01 %)",
     "needConsensusWallet": "Bitte verbinden Sie die Konsens-Wallet, um zu übertragen",
     "needBothWallets": "Bitte verbinden Sie beide Wallets, um zu übertragen",
-    "needLinkedEvm": "Diese Übertragung benötigt das verknüpfte EVM-Konto Ihrer Substrate-Wallet (SubWallet/Talisman)",
     "amountTooLow": "Mindestübertragung ist {0} AI3",
     "insufficientBalance": "Unzureichendes Guthaben auf der Quellseite",
     "max": "MAX",
@@ -142,7 +141,6 @@
     },
     "minTransfer": "Mindestübertragung: {0} AI3",
     "button": "Übertragen",
-    "prepareFundButton": "Guthaben vorbereiten",
     "buttonTransferring": "Übertrage...",
     "e2cWarning": {
       "title": "Hinweis zu vorläufigen Tests",
@@ -160,7 +158,12 @@
     "e2cConfirmed": {
       "title": "Übertragung auf Auto-EVM bestätigt",
       "message": "Ihre Übertragung von {0} AI3 an {1} wurde auf Auto-EVM bestätigt. Das Guthaben erreicht die Konsens-Kette nach der ca. 24-stündigen Challenge-Phase. Behalten Sie den Eintrag im Verlauf und markieren Sie ihn als erhalten, sobald das Guthaben angekommen ist."
-    }
+    },
+    "evmSource": "EVM-Quelle",
+    "sourceInjected": "Browser-Wallet",
+    "sourceLinked": "Verknüpfte Adresse",
+    "balanceLoading": "Guthaben wird geladen…",
+    "needEvmSource": "Diese Übertragung braucht eine EVM-Quelle: verbinden Sie MetaMask oder ein SubWallet/Talisman-Konsenskonto mit EVM-Konto"
   },
   "history": {
     "refresh": "Aktualisieren",

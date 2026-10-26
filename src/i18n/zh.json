@@ -52,7 +52,7 @@
       "title": "转账发起失败",
       "hint": "请确认两个钱包均已连接且余额充足，然后重试。"
     },
-    "e2cProviderMissing": "关联的 EVM 钱包（SubWallet/Talisman 的 EVM 账户）不可用。E2C 转账需从该账户经 transporter precompile 发出。",
+    "e2cProviderMissing": "没有可用的 EVM 来源。请连接 MetaMask，或使用带 EVM 账户的 SubWallet/Talisman 连接共识链钱包。",
     "noConsensusAccounts": {
       "title": "未找到共识链账户",
       "message": "请安装并解锁 Substrate 钱包扩展（SubWallet 或 Talisman），刷新后重试。"
@@ -121,7 +121,6 @@
     "receive": "预计到账 ≈ {0} AI3（XDM 费约 0.01%）",
     "needConsensusWallet": "请先连接共识链钱包",
     "needBothWallets": "请先连接共识链与 EVM 两个钱包",
-    "needLinkedEvm": "此转账需要 Substrate 钱包（SubWallet/Talisman）关联的 EVM 账户",
     "amountTooLow": "最低转账 {0} AI3",
     "insufficientBalance": "源链余额不足",
     "max": "最大",
@@ -145,7 +144,6 @@
     "arrivalNoteE2C": "资金将在约 24 小时挑战期后到达共识链。",
     "amountPrecision": "最多支持 18 位小数，请调整金额。",
     "button": "转账",
-    "prepareFundButton": "准备资金",
     "buttonTransferring": "转账中...",
     "e2cWarning": {
       "title": "初步测试通知",
@@ -160,7 +158,12 @@
       "title": "转账已提交",
       "message": "您的转账已成功提交并被打包进区块。预计在大约 14,400 个区块（约 24 小时）后到达共识链。您现在可以安全地关闭此窗口或开始另一笔转账。",
       "confirmButton": "好的"
-    }
+    },
+    "evmSource": "EVM 来源",
+    "sourceInjected": "浏览器钱包",
+    "sourceLinked": "SubWallet 关联地址",
+    "balanceLoading": "正在读取余额…",
+    "needEvmSource": "此转账需要一个 EVM 来源：连接 MetaMask，或使用带 EVM 账户的 SubWallet/Talisman 共识账户"
   },
   "history": {
     "refresh": "刷新",

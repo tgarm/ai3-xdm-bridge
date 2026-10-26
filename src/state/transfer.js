@@ -2,7 +2,7 @@
 //
 // Port of the pinia transferStore: transfer orchestration, C2E arrival
 // watch (poll destination balance), inclusion watch (block-scan fallback),
-// E2C precompile flow with the "prepare funds" pre-step. Semantics preserved
+// E2C precompile flow (any EVM source). Semantics preserved
 // from the 2026-10-26 field-tested rework.
 
 import { MIN_TRANSFER_AMOUNT, C2E_ARRIVAL_MS, E2C_CHALLENGE_MS } from '@/constants';
@@ -27,33 +27,45 @@ let currentPendingHash = null;
 export const consensusConnected = (s) => !!s.consensusAccount;
 export const evmConnected = (s) => !!s.evmAddress;
 
+// null = not loaded yet — callers must not treat it as 0.
 export const sourceBalance = (s) => {
   if (s.direction === 'consensusToEVM') {
-    return s.consensusBalance ? parseFloat(s.consensusBalance) : 0;
-  } // evmToConsensus
-  return s.substrateLinkedEvmBalance ? parseFloat(s.substrateLinkedEvmBalance) : 0;
+    return s.consensusBalance == null ? null : parseFloat(s.consensusBalance);
+  }
+  const src = e2cSource(s);
+  if (!src) return null;
+  return src.balance == null ? null : parseFloat(src.balance);
 };
 
-export const canPrepareFunds = (s) => {
-  if (s.direction !== 'evmToConsensus' || s.isTransferring) return false;
-  const amountNum = parseFloat(s.amount);
-  const hasAmount = amountNum >= MIN_TRANSFER_AMOUNT;
-  const linkedHasInsufficient = amountNum > sourceBalance(s);
-  const mainEvmHasSufficient = amountNum <= (s.evmBalance ? parseFloat(s.evmBalance) : 0);
-  return hasAmount && linkedHasInsufficient && mainEvmHasSufficient && evmConnected(s) && !!s.substrateLinkedEvmAddress;
+// E2C source: the transporter precompile lets ANY EVM address send to any
+// consensus address, so funds that landed on a non-linked address (e.g. a
+// plain MetaMask account) can bridge straight back. Prefer the injected
+// browser wallet, fall back to the Substrate-linked EVM account.
+export const e2cSource = (s) => {
+  const injected = evmConnected(s)
+    ? { kind: 'injected', from: s.evmAddress, balance: s.evmBalance }
+    : null;
+  const linked = s.substrateLinkedEvmAddress
+    ? { kind: 'linked', from: s.substrateLinkedEvmAddress, balance: s.substrateLinkedEvmBalance }
+    : null;
+  // Prefer whichever source actually holds funds; otherwise surface the
+  // injected one (or the linked one) so the UI can show it + why it's short.
+  const funded = (c) => c && c.balance != null && parseFloat(c.balance) > 0;
+  if (funded(injected)) return injected;
+  if (funded(linked)) return linked;
+  return injected || linked;
 };
 
 export const canTransfer = (s) => {
   const amountNum = parseFloat(s.amount);
   if (amountNum < MIN_TRANSFER_AMOUNT) return false;
-  if (amountNum > sourceBalance(s)) return false;
+  const bal = sourceBalance(s);
+  if (bal == null || amountNum > bal) return false;
   if (s.direction === 'consensusToEVM') {
     return consensusConnected(s) && evmConnected(s) && !s.isTransferring;
   }
-  // For E2C, canTransfer is only true if the linked EVM has enough funds.
-  // The canPrepareFunds selector handles the case where the main EVM wallet
-  // needs to send funds first.
-  return consensusConnected(s) && !!s.substrateLinkedEvmAddress && !s.isTransferring;
+  // E2C: a consensus destination is required, plus any EVM source.
+  return consensusConnected(s) && e2cSource(s) != null && !s.isTransferring;
 };
 
 export function consensusAddressOf(address) {
@@ -149,7 +161,12 @@ export const setAmount = (value) => {
 };
 
 export const setAmountPercent = (percent) => {
-  const newAmount = sourceBalance(state) * (percent / 100);
+  const bal = sourceBalance(state);
+  if (bal == null) {
+    addLog(`Cannot set ${percent}% — source balance not loaded yet`);
+    return;
+  }
+  const newAmount = bal * (percent / 100);
   const newAmountStr = newAmount >= MIN_TRANSFER_AMOUNT ? newAmount.toString() : '0';
   state.amount = newAmountStr;
   commit();
@@ -474,39 +491,6 @@ export const performTransfer = async () => {
   addLog(`Initiating transfer: ${state.direction} ${state.amount} AI3`);
 
   try {
-    // Handle the "Prepare Fund" case first
-    if (canPrepareFunds(state)) {
-      addLog('Preparing funds: transferring from main EVM wallet to linked EVM address...');
-      state.isTransferring = true;
-      state.currentStatus = 'preparingFunds';
-      commit();
-      newTx.direction = 'evmToLinkedEvm'; // Special direction for UI
-      newTx.estimatedTime = '~1 min';
-      newTx.expectedArrival = new Date(transferTime.getTime() + 60 * 1000).toISOString();
-
-      await evm.performEvmTransfer(
-        state.substrateLinkedEvmAddress,
-        amountWei,
-        ({ type, hash }) => {
-          if (hash) newTx.hash = hash;
-          if (type === 'sent') {
-            state.currentStatus = 'sendingFunds';
-            commit();
-          }
-          if (type === 'confirmed') {
-            addLog('Fund preparation complete. Updating linked EVM balance.');
-            newTx.status = 'success';
-            state.isTransferring = false;
-            state.currentStatus = '';
-            commit();
-            // Refresh linked balance to reflect the new funds
-            substrate.getLinkedEvmBalance(state.substrateLinkedEvmAddress);
-          }
-        }
-      );
-      return; // Stop here, the user can now perform the actual E2C transfer
-    }
-
     if (state.direction === 'consensusToEVM') {
       if (!state.consensusApi || !state.evmAddress) {
         addLog('Missing Consensus API or EVM address for transfer');
@@ -551,9 +535,10 @@ export const performTransfer = async () => {
       addLog('Consensus transfer delegated and initiated');
       // Fallback: if WS status events are lost, find inclusion by scanning
       startInclusionWatch(hash, newTx);
-    } else { // evmToConsensus via transporter precompile
-      if (!state.linkedEvmProvider || !state.substrateLinkedEvmAddress) {
-        addLog('Linked EVM provider not available for E2C transfer');
+    } else { // evmToConsensus via transporter precompile — any EVM address may send
+      const src = e2cSource(state);
+      if (!src || !state.consensusAddress) {
+        addLog('No usable EVM source for E2C transfer');
         toast({
           type: 'danger',
           title: t('notifications.walletsNotConnected.title'),
@@ -564,12 +549,13 @@ export const performTransfer = async () => {
         commit();
         return;
       }
-      addLog('Creating EVM to Consensus transfer (transporter precompile)...');
+      addLog(`Creating EVM to Consensus transfer (transporter precompile, ${src.kind} source ${src.from})...`);
       state.isTransferring = true;
       state.currentStatus = 'sending';
       commit();
 
-      const { hash } = await substrate.performEvmToConsensusTransfer(
+      const { hash } = await substrate.performE2CTransfer(
+        src,
         state.consensusAddress,
         amountWei
       );

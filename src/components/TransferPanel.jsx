@@ -1,16 +1,18 @@
 // src/components/TransferPanel.jsx
 //
 // The core action card. UX rules (doc/07): the transfer button is never
-// silently disabled — when inactive, a hint line states exactly why.
+// silently disabled — when inactive, a hint line states exactly why. An
+// unread balance shows '—' (never a fake 0).
 
+import { useState } from 'react';
 import { alert } from '@/ui/dialogs';
 import { useEngine } from '@/state/engine';
 import { useI18n } from '@/i18n';
 import { MIN_TRANSFER_AMOUNT } from '@/constants';
 import {
   canTransfer,
-  canPrepareFunds,
   consensusConnected,
+  e2cSource,
   evmConnected,
   sourceBalance,
   setAmount,
@@ -35,6 +37,8 @@ function statusLabel(raw, t) {
   return STATUS_KEYS.has(raw) ? t(`transfer.status.${raw}`) : raw;
 }
 
+const truncate = (addr) => `${addr.slice(0, 6)}…${addr.slice(-4)}`;
+
 export function TransferPanel() {
   const s = useEngine();
   const { t } = useI18n();
@@ -42,22 +46,22 @@ export function TransferPanel() {
   const isC2E = s.direction === 'consensusToEVM';
   const amountNum = parseFloat(s.amount) || 0;
   const srcBal = sourceBalance(s);
+  const source = isC2E ? null : e2cSource(s);
 
   let reason = null;
   if (!s.isTransferring) {
     if (!consensusConnected(s)) reason = 'transfer.needConsensusWallet';
     else if (isC2E && !evmConnected(s)) reason = 'transfer.needBothWallets';
-    else if (!isC2E && !s.substrateLinkedEvmAddress) reason = 'transfer.needLinkedEvm';
+    else if (!isC2E && !source) reason = 'transfer.needEvmSource';
+    else if (srcBal == null) reason = 'transfer.balanceLoading';
     else if (amountNum < MIN_TRANSFER_AMOUNT) reason = 'transfer.amountTooLow';
     else if (amountNum > srcBal) reason = 'transfer.insufficientBalance';
   }
 
-  const enabled = s.isTransferring || canTransfer(s) || canPrepareFunds(s);
+  const enabled = s.isTransferring || canTransfer(s);
   const label = s.isTransferring
     ? (statusLabel(s.currentStatus, t) || t('transfer.buttonTransferring'))
-    : canPrepareFunds(s)
-      ? t('transfer.prepareFundButton')
-      : t('transfer.button');
+    : t('transfer.button');
 
   const onSwap = () => {
     const next = isC2E ? 'evmToConsensus' : 'consensusToEVM';
@@ -82,9 +86,21 @@ export function TransferPanel() {
         </button>
       </div>
 
+      {!isC2E && source && (
+        <div className="kv">
+          <span>{t('transfer.evmSource')}</span>
+          <span style={{ display: 'inline-flex', gap: 8, alignItems: 'baseline' }}>
+            <span className="badge info">{source.kind === 'injected' ? t('transfer.sourceInjected') : t('transfer.sourceLinked')}</span>
+            <span className="mono" title={source.from}>{truncate(source.from)}</span>
+          </span>
+        </div>
+      )}
+
       <div className="kv">
         <span>{t('transfer.available')}</span>
-        <span className="mono balance-value">{s.isTransferring ? '…' : `${srcBal.toFixed(4)} AI3`}</span>
+        <span className="mono balance-value">
+          {s.isTransferring ? '…' : srcBal == null ? '—' : `${srcBal.toFixed(4)} AI3`}
+        </span>
       </div>
 
       <div className="input-wrap" style={{ marginTop: 10 }}>
@@ -107,14 +123,14 @@ export function TransferPanel() {
             key={p}
             className="btn"
             onClick={() => setAmountPercent(p)}
-            disabled={!srcBal}
+            disabled={srcBal == null || srcBal <= 0}
           >
             {p === 100 ? t('transfer.max') : `${p}%`}
           </button>
         ))}
       </div>
 
-      {amountNum >= MIN_TRANSFER_AMOUNT && (
+      {amountNum >= MIN_TRANSFER_AMOUNT && srcBal != null && amountNum <= srcBal && (
         <p className="hint-line">
           {t('transfer.receive', [(amountNum * 0.9999).toFixed(4)])}
         </p>

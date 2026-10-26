@@ -44,7 +44,7 @@ export const updateBalance = async () => {
 };
 
 // Helper to ensure correct network is selected
-const ensureCorrectNetwork = async () => {
+export const ensureCorrectNetwork = async () => {
   if (!window.ethereum) return false;
 
   try {
@@ -132,7 +132,7 @@ export const connect = async () => {
 export const disconnect = () => {
   state.evmProvider = null; // The provider itself can be re-initialized later
   state.evmAddress = '';
-  state.evmBalance = '0';
+  state.evmBalance = null;
   localStorage.removeItem('evmAddress');
   localStorage.removeItem('evmBalance');
   commit();

@@ -56,17 +56,19 @@ export const state = {
   readOnlyConsensusApi: null,
   consensusAccount: null,
   substrateAccounts: [],
-  consensusBalance: 0,
+  // Balances are null until actually read — the UI shows '—' (never a
+  // fake 0) until then.
+  consensusBalance: null,
   consensusBalanceLoading: false,
   consensusAddress: '',
   substrateLinkedEvmAddress: '',
-  substrateLinkedEvmBalance: '0',
+  substrateLinkedEvmBalance: null,
   substrateLinkedEvmBalanceLoading: false,
   linkedEvmProvider: null,
   // EVM wallet
   evmProvider: null,
   evmAddress: localStorage.getItem('evmAddress') || '',
-  evmBalance: localStorage.getItem('evmBalance') || '0',
+  evmBalance: localStorage.getItem('evmBalance') || null,
   evmBalanceLoading: false,
 };
 

@@ -52,7 +52,7 @@
       "title": "Transfer Initiation Failed",
       "hint": "Please ensure both wallets are connected, you have sufficient balance, and try again."
     },
-    "e2cProviderMissing": "The linked EVM wallet (SubWallet/Talisman EVM account) is not available. E2C transfers are sent from that account via the transporter precompile.",
+    "e2cProviderMissing": "No usable EVM source. Connect MetaMask, or connect a SubWallet/Talisman consensus account that has an EVM account.",
     "noConsensusAccounts": {
       "title": "No Consensus accounts found",
       "message": "Install and unlock a Substrate wallet extension (SubWallet or Talisman), then refresh and try again."
@@ -121,7 +121,6 @@
     "receive": "Estimated receipt ≈ {0} AI3 (XDM fee ~0.01%)",
     "needConsensusWallet": "Connect the Consensus wallet to transfer",
     "needBothWallets": "Connect both wallets to transfer",
-    "needLinkedEvm": "This transfer needs the linked EVM account of your Substrate wallet (SubWallet/Talisman)",
     "amountTooLow": "Minimum transfer is {0} AI3",
     "insufficientBalance": "Insufficient source balance",
     "max": "MAX",
@@ -145,7 +144,6 @@
     "arrivalNoteE2C": "Funds arrive on Consensus after the ~24-hour challenge period.",
     "amountPrecision": "At most 18 decimal places are supported. Please adjust the amount.",
     "button": "Transfer",
-    "prepareFundButton": "Prepare Fund",
     "buttonTransferring": "Transferring...",
     "e2cWarning": {
       "title": "Preliminary Testing Notice",
@@ -160,7 +158,12 @@
       "title": "Transfer Submitted",
       "message": "Your transfer has been successfully submitted and included in a block. It is expected to arrive on the Consensus chain after approximately 14,400 blocks (around 24 hours). You can now safely close this window or start another transfer.",
       "confirmButton": "OK"
-    }
+    },
+    "evmSource": "EVM source",
+    "sourceInjected": "Browser wallet",
+    "sourceLinked": "Linked address",
+    "balanceLoading": "Reading balance…",
+    "needEvmSource": "This transfer needs an EVM source: connect MetaMask, or a SubWallet/Talisman consensus account with an EVM account"
   },
   "history": {
     "refresh": "Refresh",

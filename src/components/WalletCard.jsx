@@ -26,9 +26,10 @@ function useCopyAddress() {
 }
 
 function Balance({ value, loading }) {
+  // null = not loaded yet (or read failed) — show '—', never a fake 0.
   return (
     <span className="balance-value mono">
-      {loading ? '…' : `${value} AI3`}
+      {loading ? '…' : value == null ? '—' : `${value} AI3`}
     </span>
   );
 }

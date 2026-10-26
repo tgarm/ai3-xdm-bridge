@@ -52,7 +52,7 @@
       "title": "Error al iniciar la transferencia",
       "hint": "Asegúrese de que ambas carteras estén conectadas y de que tiene saldo suficiente, e inténtelo de nuevo."
     },
-    "e2cProviderMissing": "La cartera EVM vinculada (cuenta EVM de SubWallet/Talisman) no está disponible. Las transferencias E2C se envían desde esa cuenta mediante el precompilado transporter.",
+    "e2cProviderMissing": "Sin origen EVM utilizable. Conecte MetaMask, o una cuenta de consenso de SubWallet/Talisman que tenga cuenta EVM.",
     "noConsensusAccounts": {
       "title": "No se encontraron cuentas de Consenso",
       "message": "Instale y desbloquee una extensión de cartera Substrate (SubWallet o Talisman), actualice e inténtelo de nuevo."
@@ -121,7 +121,6 @@
     "receive": "Recepción estimada ≈ {0} AI3 (comisión XDM ~0,01 %)",
     "needConsensusWallet": "Conecte la cartera de Consenso para transferir",
     "needBothWallets": "Conecte ambas carteras para transferir",
-    "needLinkedEvm": "Esta transferencia requiere la cuenta EVM vinculada de su cartera Substrate (SubWallet/Talisman)",
     "amountTooLow": "La transferencia mínima es {0} AI3",
     "insufficientBalance": "Saldo insuficiente en el origen",
     "max": "MÁX",
@@ -142,7 +141,6 @@
     },
     "minTransfer": "Transferencia mínima: {0} AI3",
     "button": "Transferir",
-    "prepareFundButton": "Preparar Fondos",
     "buttonTransferring": "Transfiriendo...",
     "e2cWarning": {
       "title": "Aviso de Pruebas Preliminares",
@@ -160,7 +158,12 @@
     "e2cConfirmed": {
       "title": "Transferencia confirmada en Auto-EVM",
       "message": "Su transferencia de {0} AI3 a {1} ha sido confirmada en Auto-EVM. Los fondos llegan a la cadena de Consenso tras el período de desafío de ~24 horas. Conserve la entrada en el historial y márquela como recibida cuando lleguen los fondos."
-    }
+    },
+    "evmSource": "Origen EVM",
+    "sourceInjected": "Cartera del navegador",
+    "sourceLinked": "Dirección vinculada",
+    "balanceLoading": "Leyendo saldo…",
+    "needEvmSource": "Esta transferencia necesita un origen EVM: conecte MetaMask, o una cuenta de consenso de SubWallet/Talisman con cuenta EVM"
   },
   "history": {
     "refresh": "Actualizar",
