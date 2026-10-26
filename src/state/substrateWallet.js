@@ -163,7 +163,7 @@ export const performE2CTransfer = async (src, consensusDestAddress, amountWei, o
             }
             // The precompile lives on Auto-EVM — make sure the injected
             // wallet is on chain 870 (adds/switches the network if needed).
-            await evm.ensureCorrectNetwork();
+            await ensureCorrectNetwork();
             signer = await state.evmProvider.getSigner(src.from);
         }
 

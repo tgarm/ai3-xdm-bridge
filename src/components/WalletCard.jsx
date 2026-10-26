@@ -12,11 +12,32 @@ import { consensusConnected, connectConsensus, connectEVM, disconnectConsensus, 
 
 const truncate = (addr) => `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 
+// navigator.clipboard only exists in secure contexts (https / localhost) —
+// LAN http testing has neither, so fall back to the legacy execCommand path.
+async function copyTextToClipboard(text) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.setAttribute('readonly', '');
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  try {
+    if (!document.execCommand('copy')) throw new Error('execCommand copy returned false');
+  } finally {
+    document.body.removeChild(ta);
+  }
+}
+
 function useCopyAddress() {
   const { t } = useI18n();
   return async (text) => {
     try {
-      await navigator.clipboard.writeText(text);
+      await copyTextToClipboard(text);
       toast({ type: 'ok', title: t('notifications.success'), message: t('notifications.addressCopied'), duration: 2000 });
     } catch (err) {
       console.error('Failed to copy address:', err);
