@@ -2,7 +2,8 @@
   "app": {
     "title": "Transferencia Interdominio AI3",
     "tagline": "Puente interdominio de Autonomys · frontend puro",
-    "footer": "Frontend puro · las claves nunca salen de su cartera · comisión XDM ~0,01 % · transferencia mínima 1 AI3"
+    "footer": "Frontend puro · las claves nunca salen de su cartera · comisión XDM ~0,01 % · transferencia mínima 1 AI3",
+    "source": "Código abierto: código fuente en GitHub"
   },
   "section": {
     "wallets": "Conectar carteras",
@@ -122,7 +123,9 @@
     "setupConsensus": "Consenso: Use SubWallet/Talisman con Autonomys Consensus (RPC: {0}, SS58 {1}).",
     "setupEvm": "EVM: Agregue Auto-EVM a MetaMask (ID {0} a través de {1}).",
     "setupMinTransfer": "Transferencia mínima: {0} AI3.",
-    "setupSdkLink": "Esta aplicación está construida usando la {0} y el {1}."
+    "setupSdkLink": "Esta aplicación está construida usando la {0} y el {1}.",
+    "aboutTitle": "Sobre esta aplicación",
+    "aboutBody": "Este proyecto es de código abierto ({0}). Las transferencias se ejecutan directamente en la cadena mediante el protocolo XDM nativo: la app no custodia fondos ni claves, solo proporciona una interfaz cómoda para las operaciones on-chain. También puede realizar las mismas transferencias interdominio con polkadot.js u otras herramientas de Substrate."
   },
   "transfer": {
     "title": "Consenso → Auto-EVM",

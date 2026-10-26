@@ -29,6 +29,9 @@ export function DocsPanel() {
           <li dangerouslySetInnerHTML={{ __html: t('docs.setupMinTransfer', [code(MIN_TRANSFER_AMOUNT)]) }} />
           <li dangerouslySetInnerHTML={{ __html: t('docs.setupSdkLink', [link('https://docs.autonomys.xyz/farming/guides/xdm/', 'XDM Guide'), link('https://docs.autonomys.xyz/developers/auto-sdk/', 'Auto-SDK')]) }} />
         </ul>
+
+        <h3>{t('docs.aboutTitle')}</h3>
+        <p dangerouslySetInnerHTML={{ __html: t('docs.aboutBody', [link('https://github.com/tgarm/ai3-xdm-bridge', 'GitHub')]) }} />
       </div>
     </details>
   );

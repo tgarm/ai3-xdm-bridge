@@ -2,7 +2,8 @@
   "app": {
     "title": "AI3 跨域转账",
     "tagline": "Autonomys 跨域桥 · 纯前端",
-    "footer": "纯前端 · 私钥不离开钱包 · XDM 协议费约 0.01% · 最低转账 1 AI3"
+    "footer": "纯前端 · 私钥不离开钱包 · XDM 协议费约 0.01% · 最低转账 1 AI3",
+    "source": "开源：源代码见 GitHub"
   },
   "section": {
     "wallets": "连接钱包",
@@ -122,7 +123,9 @@
     "setupConsensus": "共识：使用 SubWallet/Talisman 与 Autonomys Consensus (RPC: {0}, SS58 {1})。",
     "setupEvm": "EVM：将 Auto-EVM 添加到 MetaMask (ID {0} via {1})。",
     "setupMinTransfer": "最小转账金额：{0} AI3。",
-    "setupSdkLink": "此应用程序是使用 {0} 和 {1} 构建的。"
+    "setupSdkLink": "此应用程序是使用 {0} 和 {1} 构建的。",
+    "aboutTitle": "关于本应用",
+    "aboutBody": "本项目为开源软件（{0}）。转账通过原生 XDM 协议直接在链上完成——本应用不托管任何资金或密钥，只是为链上操作提供易用接口；您也可以用 polkadot.js 等工具直接执行同样的跨域转账。"
   },
   "transfer": {
     "title": "共识 → Auto-EVM",

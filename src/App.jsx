@@ -52,7 +52,11 @@ export default function App() {
         <DocsPanel />
       </main>
 
-      <footer className="app-footer muted">{t('app.footer')}</footer>
+      <footer className="app-footer muted">
+        {t('app.footer')}
+        {' · '}
+        <a href="https://github.com/tgarm/ai3-xdm-bridge" target="_blank" rel="noreferrer noopener">{t('app.source')}</a>
+      </footer>
       <DialogHost />
     </div>
   );

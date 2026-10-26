@@ -2,7 +2,8 @@
   "app": {
     "title": "AI3 Cross-Domain Transfer",
     "tagline": "Autonomys cross-domain bridge · pure frontend",
-    "footer": "Pure frontend · keys stay in your wallet · XDM protocol fee ~0.01% · min transfer 1 AI3"
+    "footer": "Pure frontend · keys stay in your wallet · XDM protocol fee ~0.01% · min transfer 1 AI3",
+    "source": "Open source: source code on GitHub"
   },
   "section": {
     "wallets": "Connect wallets",
@@ -122,7 +123,9 @@
     "setupConsensus": "Consensus: Use SubWallet/Talisman with Autonomys Consensus (RPC: {0}, SS58 {1}).",
     "setupEvm": "EVM: Add Auto-EVM to MetaMask (ID {0} via {1}).",
     "setupMinTransfer": "Minimum transfer: {0} AI3.",
-    "setupSdkLink": "This app is built using the {0} and {1}."
+    "setupSdkLink": "This app is built using the {0} and {1}.",
+    "aboutTitle": "About This App",
+    "aboutBody": "This project is open source ({0}). Transfers are executed directly on-chain via the native XDM protocol — the app holds no funds or keys and only provides a convenient interface for on-chain operations. You can perform the same cross-domain transfers yourself with polkadot.js or any other Substrate tooling."
   },
   "transfer": {
     "title": "Consensus → Auto-EVM",

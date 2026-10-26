@@ -742,6 +742,16 @@ details.section > .section-body {
   text-align: center;
 }
 
+.app-footer a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.app-footer a:hover {
+  color: var(--text);
+}
+
 @media (max-width: 640px) {
   .app-header {
     align-items: center;
