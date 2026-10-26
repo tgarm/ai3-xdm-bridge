@@ -78,7 +78,44 @@ export const updateBalances = async () => {
   }
 };
 
-export const fetchTransactions = () => substrate.fetchTransactions();
+export const fetchTransactions = async () => {
+  await substrate.fetchTransactions();
+  await checkFinality();
+};
+
+// Upgrade 'in block' C2E transfers to 'finalized on consensus' by comparing
+// the inclusion height against the finalized head — a pure chain read, no
+// Subscan involved. Canonicality is verified via the stored block hash when
+// present (fork protection); height-only otherwise.
+export const checkFinality = async () => {
+  const api = state.readOnlyConsensusApi || state.consensusApi;
+  const candidates = state.transactions.filter(tx =>
+    tx.status === 'in block' && tx.direction === 'consensusToEVM' && tx.blockNumber);
+  if (!api || candidates.length === 0) return;
+  try {
+    const finalizedHead = await api.rpc.chain.getFinalizedHead();
+    const { number } = await api.rpc.chain.getHeader(finalizedHead);
+    const finalizedHeight = number.toNumber();
+    let changed = false;
+    for (const tx of candidates) {
+      if (tx.blockHash) {
+        const canonical = await api.rpc.chain.getBlockHash(tx.blockNumber);
+        if (canonical.toHex() !== tx.blockHash) {
+          addLog(`Transfer ${tx.hash?.slice(0, 10)}… block #${tx.blockNumber} is not canonical — status left unchanged`);
+          continue;
+        }
+      }
+      if (tx.blockNumber <= finalizedHeight) {
+        tx.status = 'finalized on consensus';
+        changed = true;
+        addLog(`Transfer ${tx.hash?.slice(0, 10)}… finalized on consensus (#${tx.blockNumber} ≤ finalized #${finalizedHeight})`);
+      }
+    }
+    if (changed) commit();
+  } catch (error) {
+    addLog(`Finality check failed: ${error.message}`);
+  }
+};
 export const connectConsensus = () => substrate.connect();
 export const connectEVM = () => evm.connect();
 export const disconnectConsensus = () => substrate.disconnect();
@@ -595,6 +632,9 @@ const resumeTracking = () => {
     // countdown resumes from expectedArrival and arrival is confirmed by
     // hand (mark received). Nothing to poll.
   }
+  // Upgrades 'in block' → 'finalized on consensus' where possible; no-ops
+  // without a consensus API (fresh boot, wallet not connected).
+  checkFinality();
 };
 
 // Init APIs & initial fetches if addresses loaded (call once at startup)
