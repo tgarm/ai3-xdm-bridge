@@ -253,9 +253,17 @@ const startInclusionWatch = (initialHash, pendingTx) => {
 };
 
 // Status update callback for the C2E WS subscription
+//
+// status.type values (polkadot SubstrateEvent): Broadcast, InBlock,
+// Finalized, Retracted, FinalityTimeout, Dropped, Invalid, Usurped…
+// Store a camelCase KEY here; TransferPanel translates it via
+// transfer.status.<key> — raw English strings must never reach the button.
+const statusKey = (type) =>
+  type.charAt(0).toLowerCase() + type.slice(1);
+
 const handleTransferStatus = async ({ status }) => {
   if (status.type) {
-    state.currentStatus = status.type.toLowerCase().replace(/([A-Z])/g, ' $1').trim();
+    state.currentStatus = statusKey(status.type);
     commit();
   }
   if (status.isInBlock) {
@@ -265,19 +273,30 @@ const handleTransferStatus = async ({ status }) => {
     let finalHash = currentPendingHash;
 
     // For C2E, the extrinsic hash can change when it's included in a block.
-    // Locate our extrinsic inside the block to learn the final hash.
-    const { block } = await state.consensusApi.rpc.chain.getBlock(status.asInBlock);
-    const ours = block.extrinsics.find(ex =>
-      (ex.hash.toHex() === currentPendingHash) ||
-      (ex.isSigned && ex.signer.toString() === state.consensusAddress));
-    finalHash = ours ? ours.hash.toHex() : currentPendingHash; // Fallback to old hash
+    // Locate our extrinsic inside the block to learn the final hash. The WS
+    // connection may drop between the status event and this call (public
+    // nodes do this routinely) — degrade to the submitted hash instead of
+    // crashing the callback; the arrival watch does not need the block.
+    try {
+      const { block } = await state.consensusApi.rpc.chain.getBlock(status.asInBlock);
+      const ours = block?.block?.extrinsics.find(ex =>
+        (ex.hash.toHex() === currentPendingHash) ||
+        (ex.isSigned && ex.signer.toString() === state.consensusAddress));
+      if (ours) {
+        finalHash = ours.hash.toHex();
+        if (pendingTx) {
+          pendingTx.blockNumber = block.block.header.number.toNumber();
+        }
+      }
+    } catch (error) {
+      addLog(`In-block lookup failed (continuing with submitted hash): ${error.message}`);
+    }
 
     addLog(`Transaction in block. Final hash: ${finalHash}`);
 
     if (pendingTx) {
       pendingTx.status = 'in block';
       pendingTx.hash = finalHash; // Update the hash on our tracked transaction
-      pendingTx.blockNumber = block.block.header.number.toNumber();
       currentPendingHash = finalHash; // Update the hash for subsequent tracking
       commit();
       // Bridging starts at inclusion, not finality — start watching now
@@ -398,7 +417,7 @@ export const performTransfer = async () => {
     if (canPrepareFunds(state)) {
       addLog('Preparing funds: transferring from main EVM wallet to linked EVM address...');
       state.isTransferring = true;
-      state.currentStatus = 'preparing funds';
+      state.currentStatus = 'preparingFunds';
       commit();
       newTx.direction = 'evmToLinkedEvm'; // Special direction for UI
       newTx.estimatedTime = '~1 min';
@@ -410,7 +429,7 @@ export const performTransfer = async () => {
         ({ type, hash }) => {
           if (hash) newTx.hash = hash;
           if (type === 'sent') {
-            state.currentStatus = 'sending funds';
+            state.currentStatus = 'sendingFunds';
             commit();
           }
           if (type === 'confirmed') {

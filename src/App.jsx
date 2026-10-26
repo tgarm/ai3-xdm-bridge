@@ -1,6 +1,5 @@
 // src/App.jsx
 import { useEffect } from 'react';
-import { Analytics } from '@vercel/analytics/react';
 import { useI18n } from '@/i18n';
 import { stopPolling, disconnectApis } from '@/state/transfer';
 import { WalletCard } from '@/components/WalletCard';
@@ -23,7 +22,6 @@ export default function App() {
 
   return (
     <div className="app">
-      <Analytics />
       <header className="app-header">
         <div className="brand">
           <img src="/logo.svg" alt="" className="brand-logo" />

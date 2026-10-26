@@ -21,6 +21,20 @@ import {
 
 const PERCENTS = [25, 50, 75, 100];
 
+// Engine status keys (transfer.js) → transfer.status.<key> i18n entries.
+// Unknown keys fall back to the raw string instead of a missing-translation
+// marker, so new polkadot status types degrade gracefully.
+const STATUS_KEYS = new Set([
+  'pending', 'broadcast', 'inBlock', 'finalized',
+  'preparingFunds', 'sendingFunds', 'sending',
+  'retracted', 'finalityTimeout', 'dropped', 'invalid', 'usurped',
+]);
+
+function statusLabel(raw, t) {
+  if (!raw) return null;
+  return STATUS_KEYS.has(raw) ? t(`transfer.status.${raw}`) : raw;
+}
+
 export function TransferPanel() {
   const s = useEngine();
   const { t } = useI18n();
@@ -40,7 +54,7 @@ export function TransferPanel() {
 
   const enabled = s.isTransferring || canTransfer(s) || canPrepareFunds(s);
   const label = s.isTransferring
-    ? (s.currentStatus || t('transfer.buttonTransferring'))
+    ? (statusLabel(s.currentStatus, t) || t('transfer.buttonTransferring'))
     : canPrepareFunds(s)
       ? t('transfer.prepareFundButton')
       : t('transfer.button');
@@ -119,7 +133,7 @@ export function TransferPanel() {
         {label}
       </button>
       {s.isTransferring && s.currentStatus && (
-        <p className="transfer-status">{s.currentStatus}</p>
+        <p className="transfer-status">{statusLabel(s.currentStatus, t)}</p>
       )}
     </div>
   );

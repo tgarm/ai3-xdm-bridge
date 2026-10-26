@@ -5,7 +5,11 @@ import { initEngine } from './state/transfer'
 import App from './App'
 import './styles.css'
 
-inject(); // Vercel Analytics
+// Vercel Analytics only where the app is actually deployed — locally the
+// injected script 404s and litters the console.
+if (!['localhost', '127.0.0.1'].includes(window.location.hostname)) {
+  inject();
+}
 initTheme();
 initEngine();
 

@@ -97,15 +97,25 @@ export const updateBalance = async () => {
     }
 };
 
-// Fetch transactions (Subscan-backed; keeps old data and flags
-// 'unavailable' on failure so the UI can distinguish "no history" from
-// "history service down").
+// Subscan shut down anonymous API access (2026-10-26: both v1 and v2 return
+// "strictly requires an API key", HTTP 400/code 403). A user-provided key is
+// stored in localStorage and sent as the x-api-key header.
+export const getSubscanApiKey = () => localStorage.getItem('subscanApiKey') || '';
+export const setSubscanApiKey = (key) => {
+  if (key) localStorage.setItem('subscanApiKey', key.trim());
+  else localStorage.removeItem('subscanApiKey');
+};
+
+// Fetch transactions (Subscan-backed; keeps old data and flags the failure
+// mode so the UI can distinguish "no history" / "API key required" /
+// "service down").
 export const fetchTransactions = async () => {
     const apiToUse = state.readOnlyConsensusApi || state.consensusApi;
     if (!apiToUse || !state.consensusAddress) return;
 
     try {
         addLog('Fetching Consensus extrinsics list via Subscan API V2...');
+        const apiKey = getSubscanApiKey();
         const row = 100;
         let page = 0;
         let hasMore = true;
@@ -115,7 +125,10 @@ export const fetchTransactions = async () => {
             const url = `${SUBSCAN_BASE}/api/v2/scan/extrinsics`;
             const response = await fetch(url, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(apiKey ? { 'x-api-key': apiKey } : {}),
+                },
                 body: JSON.stringify({
                     address: state.consensusAddress,
                     row,
@@ -131,6 +144,12 @@ export const fetchTransactions = async () => {
             addLog(`Subscan extrinsics page ${page} fetched: ${data.data?.extrinsics?.length || 0} items`);
 
             if (data.code !== 0) {
+                if (data.code === 403 || /api key/i.test(data.message || '')) {
+                    state.historyStatus = 'needsKey';
+                    commit();
+                    addLog('Subscan requires an API key — history panel needs one to load cross-session history.');
+                    return;
+                }
                 throw new Error(`Subscan V2 error: ${data.message}`);
             }
 
