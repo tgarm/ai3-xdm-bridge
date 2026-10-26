@@ -143,7 +143,7 @@ export function useEvmWallet(addLog) {
     }
 
     try {
-      const signer = await evmProvider.value.getSigner();
+      const signer = await evmProvider.value.getSigner(evmAddress.value);
       addLog(`Sending ${ethers.formatUnits(amountWei, DECIMALS)} AI3 from ${evmAddress.value} to ${recipient}...`);
 
       const tx = await signer.sendTransaction({
