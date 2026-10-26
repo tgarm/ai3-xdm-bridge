@@ -133,7 +133,11 @@ export function TransferPanel() {
       )}
 
       {reason && <p className="hint-line warn">{t(reason, [MIN_TRANSFER_AMOUNT])}</p>}
-      <p className="hint-line">{t('transfer.minTransfer', [MIN_TRANSFER_AMOUNT])}</p>
+      {/* When the amount itself is the problem, the warn reason above already
+          states the minimum — don't repeat it as a second line. */}
+      {reason !== 'transfer.amountTooLow' && (
+        <p className="hint-line">{t('transfer.minTransfer', [MIN_TRANSFER_AMOUNT])}</p>
+      )}
       <p className="hint-line">{isC2E ? t('transfer.arrivalNoteC2E') : t('transfer.arrivalNoteE2C')}</p>
 
       <button
