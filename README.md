@@ -20,7 +20,7 @@ Times have changed since this bridge was first built — the XDM protocol is unc
 - Protocol parameters are unchanged: min transfer 1 AI3, C2E ~100 consensus blocks (docs say ~10 min; field-measured ~25 min), E2C ~14,400 domain blocks (~1 day challenge period); the XDM fee is now documented as 5x standard weight.
 - `@autonomys/auto-xdm` 1.6.5+ ships the transporter precompile helpers this app hand-rolled for E2C (its "mainnet coming soon" comment is stale — the precompile has long been deployed on mainnet).
 
-This app still earns its keep with paced-RPC rate-limit protection (the public RPCs IP-ban aggressive clients), the 30-minute arrival window, multi-account support, Subscan-backed history and i18n — but for a one-off transfer, subspace.tools is the lower-effort path; consider contributing improvements there instead of parallel feature work. Full survey: `doc/06-xdm-bridge-improvements.md` §五 in the `tgarm/permadrive` repo.
+This app still earns its keep with paced-RPC rate-limit protection (the public RPCs IP-ban aggressive clients), the 30-minute arrival window, multi-account support, Subscan-backed history and i18n — but for a one-off transfer, subspace.tools is the lower-effort path; consider contributing improvements there instead of parallel feature work. All items above were verified against the official docs, the auto-sdk changelog and npm on 2026-10-26.
 
 ### Reliability notes (2026-10-26 rework)
 
