@@ -61,6 +61,14 @@
       "title": "Verbindung der Konsens-Wallet fehlgeschlagen",
       "message": "Verbindung fehlgeschlagen: {0}. Bitte stellen Sie sicher, dass die Erweiterung installiert, entsperrt und mit Konten versehen ist, und versuchen Sie es erneut."
     },
+    "consensusLost": {
+      "title": "Konsens-Verbindung verloren",
+      "message": "Automatische Wiederverbindung fehlgeschlagen ({0}). Bitte erneut auf Verbinden klicken – Konten und Verlauf bleiben unberührt."
+    },
+    "e2cArrived": {
+      "title": "Guthaben auf der Konsens-Kette angekommen",
+      "message": "Ihre Übertragung von {0} AI3 ist auf der Konsens-Kette angekommen."
+    },
     "evmLinkSkipped": {
       "title": "EVM-Verknüpfung übersprungen",
       "message": "Die verbundene Wallet („{0}“) legt keine verknüpfte EVM-Adresse offen. EVM → Konsens-Übertragungen sind deaktiviert; Konsens → EVM funktioniert."
@@ -156,7 +164,8 @@
     "amountPrecision": "Es sind höchstens 18 Nachkommastellen erlaubt. Bitte passen Sie den Betrag an.",
     "e2cConfirmed": {
       "title": "Übertragung auf Auto-EVM bestätigt",
-      "message": "Ihre Übertragung von {0} AI3 an {1} wurde auf Auto-EVM bestätigt. Das Guthaben erreicht die Konsens-Kette nach der ca. 24-stündigen Challenge-Phase. Behalten Sie den Eintrag im Verlauf und markieren Sie ihn als erhalten, sobald das Guthaben angekommen ist."
+      "message": "Ihre Übertragung von {0} AI3 an {1} wurde auf Auto-EVM bestätigt. Das Guthaben erreicht die Konsens-Kette nach der ca. 24-stündigen Challenge-Phase. Das Fortschritts-Panel überwacht das Konsens-Guthaben und meldet sich, sobald es angekommen ist.",
+      "confirmButton": "Verstanden"
     },
     "evmSource": "EVM-Quelle",
     "sourceInjected": "Browser-Wallet",

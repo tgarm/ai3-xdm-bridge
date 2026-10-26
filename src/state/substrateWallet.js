@@ -30,6 +30,69 @@ const disconnectApis = async () => {
     addLog('APIs disconnected');
 };
 
+// Grace window before rebuilding a dropped socket: polkadot's WsProvider
+// retries transient blips on its own, and recreating the ApiPromise under
+// it would race that recovery.
+const RECONNECT_GRACE_MS = 8000;
+
+// Hooks notified when a consensus API is (re)available — transfer.js uses
+// this to re-arm its progress watchers against the new instance.
+const apiRestoredHooks = new Set();
+export const onApiRestored = (fn) => { apiRestoredHooks.add(fn); };
+const notifyApiRestored = () => {
+    for (const fn of apiRestoredHooks) {
+        try { fn(); } catch (error) { console.error('api-restored hook failed:', error); }
+    }
+};
+
+// Transparently rebuild the transport after the active socket dies. Wallet,
+// account and balance state are preserved — only the connection was lost.
+// (Public RPCs reap idle connections routinely; field-tested annoyance was
+// having to press Connect again after every E2C transfer.) One pass at a
+// time: in practice only consensusApi is ever live, since the read-only
+// instance is never created without a stored address.
+let reconnecting = false;
+async function reconnectActiveApi(deadInstance) {
+    if (reconnecting) return;
+    reconnecting = true;
+    try {
+        addLog('API-WS: reconnecting (candidate endpoints in turn)…');
+        const replacement = await createApiInstance();
+        // The slot must still point at the dead instance (a manual connect
+        // may have won the race). Assign BEFORE disconnecting the old one so
+        // its final 'disconnected' event reads as stale and is ignored.
+        if (state.consensusApi === deadInstance) {
+            state.consensusApi = replacement;
+        } else if (state.readOnlyConsensusApi === deadInstance) {
+            state.readOnlyConsensusApi = replacement;
+        } else {
+            await replacement.disconnect().catch(() => {});
+            return;
+        }
+        commit();
+        await deadInstance.disconnect().catch(() => {});
+        // The replacement needs the extension signer re-attached for sends.
+        if (state.consensusAccount) {
+            const injector = await web3FromAddress(state.consensusAccount.address).catch(() => null);
+            if (injector) replacement.setSigner(injector.signer);
+        }
+        addLog('Consensus connection restored automatically — wallet session preserved.');
+        await updateBalance();
+        notifyApiRestored();
+    } catch (error) {
+        addLog(`Auto-reconnect failed: ${error.message} — wallet state cleared, press Connect to retry.`);
+        await disconnect();
+        toast({
+            type: 'warn',
+            title: t('notifications.consensusLost.title'),
+            message: t('notifications.consensusLost.message', [error.message]),
+            duration: 0,
+        });
+    } finally {
+        reconnecting = false;
+    }
+}
+
 // Try each public RPC in turn; both rate-limit, one dying should not kill
 // the connect.
 async function createApiInstance() {
@@ -51,18 +114,29 @@ async function createApiFor(rpcUrl) {
     let apiInstance = null;
 
     provider.on('disconnected', () => {
-        // Reset wallet state only if THIS socket is still the active API.
-        // Stale sockets from superseded connect attempts must not wipe state
-        // mid-connect (field-tested crash: consensusAccount null while
-        // connect() was still running).
+        // Only the ACTIVE API's death matters. Stale sockets from superseded
+        // connect attempts must not touch state (field-tested crash:
+        // consensusAccount null while connect() was still running).
         const isActive = apiInstance != null
             && (state.consensusApi === apiInstance || state.readOnlyConsensusApi === apiInstance);
-        if (isActive) {
-            addLog(`API-WS: disconnected from ${rpcUrl}. Resetting wallet state.`);
-            disconnect();
-        } else {
+        if (!isActive) {
             addLog(`API-WS: socket closed for ${rpcUrl} (not the active API — ignored).`);
+            return;
         }
+        // Never wipe the wallet session for a dropped socket. Wait out the
+        // provider's own retry first; if the socket is really gone, rebuild
+        // the transport transparently (session preserved).
+        addLog(`API-WS: active connection to ${rpcUrl} lost — waiting ${RECONNECT_GRACE_MS / 1000}s for spontaneous recovery…`);
+        setTimeout(() => {
+            if (apiInstance !== state.consensusApi && apiInstance !== state.readOnlyConsensusApi) return; // superseded meanwhile
+            if (apiInstance.isConnected) {
+                addLog('API-WS: socket recovered on its own.');
+                updateBalance().catch(() => {});
+                notifyApiRestored();
+                return;
+            }
+            void reconnectActiveApi(apiInstance);
+        }, RECONNECT_GRACE_MS);
     });
     provider.on('connected', () => {
         addLog(`API-WS: connected to ${rpcUrl}.`);

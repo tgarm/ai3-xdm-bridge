@@ -90,41 +90,65 @@ export const updateBalances = async () => {
   }
 };
 
-// Progress is chain-native only: this re-checks finality for tracked
-// transfers (Subscan is an external link in the UI, not a data source).
-export const refreshProgress = checkFinality;
-
-// Upgrade 'in block' C2E transfers to 'finalized on consensus' by comparing
-// the inclusion height against the finalized head — a pure chain read, no
-// Subscan involved. Canonicality is verified via the stored block hash when
-// present (fork protection); height-only otherwise.
+// Chain-native progress check (Subscan is an external link in the UI, not a
+// data source). Two jobs:
+// - upgrade 'in block' C2E transfers to 'finalized on consensus' by
+//   comparing the inclusion height against the finalized head (canonicality
+//   verified via the stored block hash when present; height-only otherwise);
+// - detect E2C arrivals during the challenge period from the destination
+//   Consensus balance. Always leaves a log line, so "Refresh" visibly does
+//   something even when nothing changed.
 export const checkFinality = async () => {
   const api = state.readOnlyConsensusApi || state.consensusApi;
+  if (!api) return;
+  let changed = false;
+
   const candidates = state.transactions.filter(tx =>
     tx.status === 'in block' && tx.direction === 'consensusToEVM' && tx.blockNumber);
-  if (!api || candidates.length === 0) return;
-  try {
-    const finalizedHead = await api.rpc.chain.getFinalizedHead();
-    const { number } = await api.rpc.chain.getHeader(finalizedHead);
-    const finalizedHeight = number.toNumber();
-    let changed = false;
-    for (const tx of candidates) {
-      if (tx.blockHash) {
-        const canonical = await api.rpc.chain.getBlockHash(tx.blockNumber);
-        if (canonical.toHex() !== tx.blockHash) {
-          addLog(`Transfer ${tx.hash?.slice(0, 10)}… block #${tx.blockNumber} is not canonical — status left unchanged`);
-          continue;
+  if (candidates.length > 0) {
+    try {
+      const finalizedHead = await api.rpc.chain.getFinalizedHead();
+      const { number } = await api.rpc.chain.getHeader(finalizedHead);
+      const finalizedHeight = number.toNumber();
+      for (const tx of candidates) {
+        if (tx.blockHash) {
+          const canonical = await api.rpc.chain.getBlockHash(tx.blockNumber);
+          if (canonical.toHex() !== tx.blockHash) {
+            addLog(`Transfer ${tx.hash?.slice(0, 10)}… block #${tx.blockNumber} is not canonical — status left unchanged`);
+            continue;
+          }
+        }
+        if (tx.blockNumber <= finalizedHeight) {
+          tx.status = 'finalized on consensus';
+          changed = true;
+          addLog(`Transfer ${tx.hash?.slice(0, 10)}… finalized on consensus (#${tx.blockNumber} ≤ finalized #${finalizedHeight})`);
         }
       }
-      if (tx.blockNumber <= finalizedHeight) {
-        tx.status = 'finalized on consensus';
-        changed = true;
-        addLog(`Transfer ${tx.hash?.slice(0, 10)}… finalized on consensus (#${tx.blockNumber} ≤ finalized #${finalizedHeight})`);
+    } catch (error) {
+      addLog(`Finality check failed: ${error.message}`);
+    }
+  }
+
+  const e2cPending = state.transactions.filter(tx =>
+    tx.direction === 'evmToConsensus' && tx.status === 'bridging' && tx.arrivalBaseline != null);
+  if (e2cPending.length > 0) {
+    await substrate.updateBalance(); // one fresh read covers all pending E2C txs
+    const current = parseFloat(state.consensusBalance);
+    if (!Number.isNaN(current)) {
+      for (const tx of e2cPending) {
+        if (confirmE2cArrival(tx, current)) changed = true;
       }
     }
-    if (changed) commit();
-  } catch (error) {
-    addLog(`Finality check failed: ${error.message}`);
+  }
+  armE2cWatches();
+
+  if (changed) commit();
+  const tracked = state.transactions.filter(tx =>
+    ['pending', 'in block', 'bridging'].includes(tx.status)).length;
+  if (tracked > 0) {
+    addLog(changed
+      ? 'Progress checked — status updated.'
+      : `Progress checked — ${tracked} transfer(s) tracked, nothing new yet.`);
   }
 };
 export const connectConsensus = async () => {
@@ -265,6 +289,63 @@ const startArrivalWatch = (pendingTx, amountNum, { quiet = false } = {}) => {
     arrivalTimers.set(pendingTx.id, setTimeout(tick, interval));
   };
   arrivalTimers.set(pendingTx.id, setTimeout(tick, ARRIVAL_POLL_FAST_MS));
+};
+
+// ---- E2C arrival watch --------------------------------------------------
+// The ~24h challenge period ends with the transporter delivering the funds
+// to the destination Consensus address — visible as a balance rise. The
+// pre-transfer balance is recorded as the tx baseline at submit time; while
+// a bridging E2C transfer exists, poll the Consensus balance every 5 min
+// (plus on every manual refresh / reconnect) and auto-complete the tx once
+// the balance clears baseline + amount. Transfers recorded before baselines
+// existed fall back to the manual "mark received" button.
+const E2C_POLL_MS = 5 * 60 * 1000;
+const E2C_FIRST_MS = 5 * 1000;
+const E2C_GRACE_MS = 2 * 60 * 60 * 1000; // keep polling 2h past the ETA
+
+const clearWatch = (tx) => {
+  const handle = arrivalTimers.get(tx.id);
+  if (handle) clearTimeout(handle);
+  arrivalTimers.delete(tx.id);
+};
+
+const confirmE2cArrival = (tx, current) => {
+  const target = tx.arrivalBaseline + parseFloat(tx.amount) * 0.98;
+  if (!(current >= target)) return false;
+  clearWatch(tx);
+  tx.status = 'completed';
+  commit();
+  addLog(`E2C funds detected on Consensus: balance ${current} ≥ target ${target.toFixed(4)} AI3`);
+  toast({
+    type: 'ok',
+    title: t('notifications.e2cArrived.title'),
+    message: t('notifications.e2cArrived.message', [tx.amount]),
+    duration: 0,
+  });
+  return true;
+};
+
+const armE2cWatches = () => {
+  for (const tx of state.transactions) {
+    if (tx.direction !== 'evmToConsensus' || tx.status !== 'bridging') continue;
+    if (tx.arrivalBaseline == null) continue; // no baseline → manual mark only
+    if (arrivalTimers.has(tx.id)) continue;
+    if (Date.now() > Date.parse(tx.expectedArrival) + E2C_GRACE_MS) continue;
+    addLog(`Watching Consensus balance for E2C arrival (baseline ${tx.arrivalBaseline} AI3, poll every 5 min)`);
+    const tick = async () => {
+      arrivalTimers.delete(tx.id);
+      if (tx.status !== 'bridging') return; // resolved elsewhere meanwhile
+      await substrate.updateBalance();
+      const current = parseFloat(state.consensusBalance);
+      if (!Number.isNaN(current) && confirmE2cArrival(tx, current)) return;
+      if (Date.now() > Date.parse(tx.expectedArrival) + E2C_GRACE_MS) {
+        addLog(`E2C transfer ${tx.hash ? `${tx.hash.slice(0, 10)}… ` : ''}not detected within the challenge window — use the history entry to verify or mark manually.`);
+        return; // no re-arm; the manual mark button stays available
+      }
+      arrivalTimers.set(tx.id, setTimeout(tick, E2C_POLL_MS));
+    };
+    arrivalTimers.set(tx.id, setTimeout(tick, E2C_FIRST_MS));
+  }
 };
 
 // --- C2E inclusion watch (WS-status fallback) ---------------------------
@@ -549,6 +630,12 @@ export const performTransfer = async () => {
         commit();
         return;
       }
+      // Destination's pre-transfer balance: the baseline the E2C arrival
+      // watch compares against during the challenge period. If the balance
+      // was never loaded, no baseline — the manual mark button covers it.
+      if (state.consensusBalance != null) {
+        newTx.arrivalBaseline = parseFloat(state.consensusBalance) || 0;
+      }
       addLog(`Creating EVM to Consensus transfer (transporter precompile, ${src.kind} source ${src.from})...`);
       state.isTransferring = true;
       state.currentStatus = 'sending';
@@ -571,6 +658,8 @@ export const performTransfer = async () => {
         message: t('transfer.e2cConfirmed.message', [state.amount, state.consensusAddress]),
         confirmText: t('transfer.e2cConfirmed.confirmButton'),
       });
+      // Start watching the destination balance for the post-challenge arrival.
+      armE2cWatches();
     }
   } catch (error) {
     newTx.status = 'failed';
@@ -621,15 +710,23 @@ const resumeTracking = () => {
       // RPC — works without any connected wallet.
       addLog(`Resuming arrival watch for transfer ${tx.hash ? tx.hash.slice(0, 10) + '…' : tx.id}`);
       startArrivalWatch(tx, parseFloat(tx.amount), { quiet: true });
+    } else if (tx.direction === 'evmToConsensus' && tx.status === 'bridging') {
+      // ~24h challenge period. Arrival is auto-detected by polling the
+      // destination Consensus balance — the watch is armed by checkFinality
+      // once a consensus API exists (wallet connect or auto-reconnect).
+      if (!(state.consensusApi || state.readOnlyConsensusApi)) {
+        addLog(`Transfer ${tx.hash ? `${tx.hash.slice(0, 10)}… ` : ''}is in the E2C challenge period — connect the Consensus wallet to auto-detect arrival.`);
+      }
     }
-    // E2C 'bridging': the ~24h challenge period is calendar time — the
-    // countdown resumes from expectedArrival and arrival is confirmed by
-    // hand (mark received). Nothing to poll.
   }
   // Upgrades 'in block' → 'finalized on consensus' where possible; no-ops
   // without a consensus API (fresh boot, wallet not connected).
   checkFinality();
 };
+
+// A rebuilt consensus API (auto-reconnect) leaves watchers holding the dead
+// instance — re-arm everything against the new one.
+substrate.onApiRestored(() => resumeTracking());
 
 // Init APIs & initial fetches if addresses loaded (call once at startup)
 export const initEngine = () => {

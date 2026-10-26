@@ -61,6 +61,14 @@
       "title": "Error al conectar la cartera de Consenso",
       "message": "Conexión fallida: {0}. Asegúrese de que la extensión esté instalada, desbloqueada y con cuentas, e inténtelo de nuevo."
     },
+    "consensusLost": {
+      "title": "Conexión de Consenso perdida",
+      "message": "No se pudo reconectar automáticamente ({0}). Pulse Conectar de nuevo; sus cuentas y el historial no se ven afectados."
+    },
+    "e2cArrived": {
+      "title": "Fondos llegados a Consenso",
+      "message": "Su transferencia de {0} AI3 ha llegado a la cadena de Consenso."
+    },
     "evmLinkSkipped": {
       "title": "Vinculación EVM omitida",
       "message": "La cartera conectada ('{0}') no expone una dirección EVM vinculada. Las transferencias EVM → Consenso están deshabilitadas; Consenso → EVM funciona."
@@ -156,7 +164,8 @@
     "amountPrecision": "Se admiten como máximo 18 decimales. Ajuste la cantidad.",
     "e2cConfirmed": {
       "title": "Transferencia confirmada en Auto-EVM",
-      "message": "Su transferencia de {0} AI3 a {1} ha sido confirmada en Auto-EVM. Los fondos llegan a la cadena de Consenso tras el período de desafío de ~24 horas. Conserve la entrada en el historial y márquela como recibida cuando lleguen los fondos."
+      "message": "Su transferencia de {0} AI3 a {1} ha sido confirmada en Auto-EVM. Los fondos llegan a la cadena de Consenso tras el período de desafío de ~24 horas. El panel de progreso vigila el saldo de Consenso y le avisa cuando lleguen.",
+      "confirmButton": "Entendido"
     },
     "evmSource": "Origen EVM",
     "sourceInjected": "Cartera del navegador",

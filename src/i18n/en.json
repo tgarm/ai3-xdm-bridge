@@ -61,6 +61,14 @@
       "title": "Consensus wallet connection failed",
       "message": "Connection failed: {0}. Make sure the extension is installed, unlocked, and has accounts, then try again."
     },
+    "consensusLost": {
+      "title": "Consensus connection lost",
+      "message": "Could not reconnect automatically ({0}). Please press Connect again — your accounts and history are unaffected."
+    },
+    "e2cArrived": {
+      "title": "Funds arrived on Consensus",
+      "message": "Your transfer of {0} AI3 has landed on the Consensus chain."
+    },
     "evmLinkSkipped": {
       "title": "EVM linking skipped",
       "message": "The connected wallet ('{0}') does not expose a linked EVM address. EVM → Consensus transfers are disabled; Consensus → EVM works."
@@ -151,7 +159,8 @@
     "buttonTransferring": "Transferring...",
     "e2cConfirmed": {
       "title": "Transfer Confirmed on Auto-EVM",
-      "message": "Your transfer of {0} AI3 to {1} has been confirmed on Auto-EVM. Funds arrive on the Consensus chain after the ~24-hour challenge period. Keep this entry in the history panel and mark it as received once the funds land."
+      "message": "Your transfer of {0} AI3 to {1} has been confirmed on Auto-EVM. Funds arrive on the Consensus chain after the ~24-hour challenge period. The progress panel watches the Consensus balance and tells you when the funds land.",
+      "confirmButton": "Got it"
     },
     "e2cInBlock": {
       "title": "Transfer Submitted",
