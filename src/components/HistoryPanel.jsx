@@ -188,7 +188,10 @@ export function HistoryPanel() {
                     : t('history.estimatedArrival', [formatCountdown(remainingMs(tx))])}
                 </p>
               )}
-              {tx.direction === 'evmToConsensus' && tx.status === 'bridging' && tx.id && (
+              {/* Fallback for transfers that can't be auto-verified (no
+                  balance baseline, watch retired): the user closes the loop
+                  by hand. */}
+              {tx.status === 'bridging' && tx.id && (
                 <button
                   className="btn small"
                   style={{ marginTop: 8 }}

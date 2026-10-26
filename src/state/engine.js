@@ -76,7 +76,14 @@ let snapshot = { ...state };
 const listeners = new Set();
 
 export function commit() {
-  snapshot = { ...state };
+  // Clone the mutable arrays: consumers memoize on array identity (e.g. the
+  // Progress list sorts transactions via useMemo). In-place pushes would
+  // otherwise be invisible to every snapshot taken before them.
+  snapshot = {
+    ...state,
+    transactions: [...state.transactions],
+    logs: [...state.logs],
+  };
   persistTxs();
   listeners.forEach((fn) => fn());
 }

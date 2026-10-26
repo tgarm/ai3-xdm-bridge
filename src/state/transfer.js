@@ -129,6 +129,42 @@ export const checkFinality = async () => {
     }
   }
 
+  // C2E arrival: one linked-EVM balance read covers all in-flight C2E txs.
+  // This is what lets "Refresh" resolve a stuck "Bridging" entry on the
+  // spot, and it revives watches that died with an old tab.
+  const c2ePending = state.transactions.filter(tx =>
+    tx.direction === 'consensusToEVM' && ['in block', 'bridging'].includes(tx.status));
+  if (c2ePending.length > 0 && state.substrateLinkedEvmAddress) {
+    await substrate.getLinkedEvmBalance(state.substrateLinkedEvmAddress);
+    const current = parseFloat(state.substrateLinkedEvmBalance);
+    if (!Number.isNaN(current)) {
+      for (const tx of c2ePending) {
+        if (tx.arrivalBaseline == null) continue; // pre-baseline tx: manual mark only
+        const target = tx.arrivalBaseline + parseFloat(tx.amount) * 0.98;
+        if (current >= target) {
+          clearWatch(tx);
+          tx.status = 'arrived';
+          changed = true;
+          addLog(`Funds arrived on Auto-EVM: ${current} AI3 (transfer ${tx.hash?.slice(0, 10)}…)`);
+          toast({
+            type: 'ok',
+            title: t('notifications.fundsArrived.title'),
+            message: t('notifications.fundsArrived.message', [current]),
+            duration: 0,
+          });
+        }
+      }
+    }
+    // Re-arm watches that quit under the old give-up-at-horizon rule — the
+    // watch now keeps polling past the horizon instead of abandoning.
+    for (const tx of c2ePending) {
+      if (!['in block', 'bridging'].includes(tx.status)) continue; // arrived above
+      if (!arrivalTimers.has(tx.id)) {
+        startArrivalWatch(tx, parseFloat(tx.amount), { quiet: true });
+      }
+    }
+  }
+
   const e2cPending = state.transactions.filter(tx =>
     tx.direction === 'evmToConsensus' && tx.status === 'bridging' && tx.arrivalBaseline != null);
   if (e2cPending.length > 0) {
@@ -209,6 +245,8 @@ export const setAmountPercent = (percent) => {
 const ARRIVAL_POLL_FAST_MS = 30 * 1000; // first 10 minutes
 const ARRIVAL_POLL_SLOW_MS = 60 * 1000; // until the 30 min horizon
 const ARRIVAL_FAST_WINDOW_MS = 10 * 60 * 1000;
+const ARRIVAL_POLL_LATE_MS = 5 * 60 * 1000; // past the horizon: keep watching
+const ARRIVAL_WATCH_MAX_MS = 24 * 60 * 60 * 1000; // retire the watch after a day
 // Fallback inclusion watch: if the WS subscription dies (public nodes drop
 // with 1006 routinely), scan the best chain for our extrinsic instead.
 const INCLUSION_WATCH_MS = 12 * 1000;
@@ -271,18 +309,29 @@ const startArrivalWatch = (pendingTx, amountNum, { quiet = false } = {}) => {
     }
     const elapsed = Date.now() - startedAt;
     if (elapsed >= C2E_ARRIVAL_MS) {
-      pendingTx.status = 'bridging';
-      commit();
-      addLog('Arrival horizon (30 min) reached without a detected balance change — XDM transfers can take longer. Use "Refresh Balance" or history to check again.');
-      if (!quiet) {
-        toast({
-          type: 'info',
-          title: t('notifications.stillBridging.title'),
-          message: t('notifications.stillBridging.message'),
-          duration: 0,
-        });
+      // Past the typical horizon — demote to "bridging" (history shows the
+      // longer-than-usual hint) but KEEP watching at a slower pace: XDM
+      // regularly lands minutes late, and a watch that quits is how
+      // transfers got stuck on "Bridging" forever.
+      if (pendingTx.status !== 'bridging') {
+        pendingTx.status = 'bridging';
+        commit();
+        addLog('Arrival horizon (30 min) reached without a detected change — XDM can take longer. The watch continues at a slower pace; "Refresh" checks immediately.');
+        if (!quiet) {
+          toast({
+            type: 'info',
+            title: t('notifications.stillBridging.title'),
+            message: t('notifications.stillBridging.message'),
+            duration: 0,
+          });
+        }
       }
-      stopArrivalWatch(pendingTx);
+      if (elapsed >= ARRIVAL_WATCH_MAX_MS) {
+        addLog(`Arrival watch for ${pendingTx.hash ? `${pendingTx.hash.slice(0, 10)}… ` : ''}retired after 24 h — use "Refresh" or mark it received manually once the funds show up.`);
+        stopArrivalWatch(pendingTx);
+        return;
+      }
+      arrivalTimers.set(pendingTx.id, setTimeout(tick, ARRIVAL_POLL_LATE_MS));
       return;
     }
     const interval = elapsed < ARRIVAL_FAST_WINDOW_MS ? ARRIVAL_POLL_FAST_MS : ARRIVAL_POLL_SLOW_MS;
@@ -458,8 +507,16 @@ const handleTransferStatus = async ({ status }) => {
       pendingTx.hash = finalHash; // Update the hash on our tracked transaction
       pendingTx.blockHash = status.asInBlock;
       currentPendingHash = finalHash; // Update the hash for subsequent tracking
-      commit();
-      // Bridging starts at inclusion, not finality — start watching now
+    }
+    // Submission phase is over the moment the tx is included — free the
+    // transfer button (it used to stay "in block" until reload) and let the
+    // Progress panel carry the rest of the journey. currentPendingHash stays
+    // set: later WS events (Finalized) still need it to find the tx.
+    state.isTransferring = false;
+    state.currentStatus = '';
+    commit();
+    // Bridging starts at inclusion, not finality — start watching now
+    if (pendingTx) {
       startArrivalWatch(pendingTx, parseFloat(pendingTx.amount));
     }
   }
