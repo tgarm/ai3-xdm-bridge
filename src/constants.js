@@ -1,4 +1,13 @@
-export const CONSENSUS_RPC = 'wss://rpc.mainnet.autonomys.xyz/ws';
+// Public mainnet consensus RPCs, tried in order. Both rate-limit by IP and
+// temporarily ban heavy connect attempts (field note 2026-10-26:
+// rpc.mainnet.autonomys.xyz served repeated 1006s under load), so a second
+// endpoint — the foundation one — roughly halves the odds of a dead connect.
+export const CONSENSUS_RPC_CANDIDATES = [
+  'wss://rpc.mainnet.autonomys.xyz/ws',
+  'wss://rpc.mainnet.subspace.foundation/ws',
+];
+// Primary endpoint (documentation / setup notes).
+export const CONSENSUS_RPC = CONSENSUS_RPC_CANDIDATES[0];
 export const EVM_RPC_HTTPS = 'https://auto-evm.mainnet.autonomys.xyz/ws';
 export const DOMAIN_ID = 0;
 export const DECIMALS = 18n;

@@ -11,7 +11,7 @@ import { ApiPromise } from '@polkadot/api';
 import { BrowserProvider } from 'ethers';
 import { decodeAddress, encodeAddress } from '@polkadot/util-crypto';
 import { PacedWsProvider, probeProvider } from '@/lib/pacedProvider';
-import { CONSENSUS_RPC, AUTONOMYS_PREFIX, DECIMALS, DOMAIN_ID, EVM_RPC_HTTPS } from '@/constants';
+import { CONSENSUS_RPC_CANDIDATES, AUTONOMYS_PREFIX, DECIMALS, DOMAIN_ID, EVM_RPC_HTTPS } from '@/constants';
 import { state, commit, addLog } from './engine';
 import { toast } from '@/ui/dialogs';
 import { t } from '@/i18n';
@@ -30,29 +30,54 @@ const disconnectApis = async () => {
     addLog('APIs disconnected');
 };
 
-async function createApiInstance(rpcUrl) {
+// Try each public RPC in turn; both rate-limit, one dying should not kill
+// the connect.
+async function createApiInstance() {
+    let lastError;
+    for (const rpcUrl of CONSENSUS_RPC_CANDIDATES) {
+        try {
+            return await createApiFor(rpcUrl);
+        } catch (error) {
+            addLog(`RPC ${rpcUrl} unavailable: ${error.message}`);
+            lastError = error;
+        }
+    }
+    throw lastError ?? new Error('No consensus RPC endpoint reachable');
+}
+
+async function createApiFor(rpcUrl) {
     addLog(`Creating paced API instance for ${rpcUrl}...`);
     const provider = new PacedWsProvider(rpcUrl);
+    let apiInstance = null;
 
-    // If the websocket drops for any reason, the UI reflects the
-    // disconnected state, allowing the user to reconnect.
     provider.on('disconnected', () => {
-        addLog(`API-WS: disconnected from ${rpcUrl}. Resetting wallet state.`);
-        disconnect();
+        // Reset wallet state only if THIS socket is still the active API.
+        // Stale sockets from superseded connect attempts must not wipe state
+        // mid-connect (field-tested crash: consensusAccount null while
+        // connect() was still running).
+        const isActive = apiInstance != null
+            && (state.consensusApi === apiInstance || state.readOnlyConsensusApi === apiInstance);
+        if (isActive) {
+            addLog(`API-WS: disconnected from ${rpcUrl}. Resetting wallet state.`);
+            disconnect();
+        } else {
+            addLog(`API-WS: socket closed for ${rpcUrl} (not the active API — ignored).`);
+        }
     });
     provider.on('connected', () => {
         addLog(`API-WS: connected to ${rpcUrl}.`);
     });
 
     // Probe before ApiPromise.create: its init burst lands on a banned IP
-    // otherwise, and bans are extended by retrying.
-    await probeProvider(provider);
+    // otherwise, and bans are extended by retrying. Capped retries so the
+    // fallback endpoint gets its turn in reasonable time.
+    await probeProvider(provider, { maxRetries: 2 });
 
     // No custom `types` and no manual metadata refresh: mainnet metadata
     // natively registers all transporter types (field-tested 2026-10-26;
     // injected aliases like AccountId20 crash storage decoding on
     // polkadot-api >= 16 and are redundant everywhere else).
-    const apiInstance = await ApiPromise.create({ provider, noInitWarn: true });
+    apiInstance = await ApiPromise.create({ provider, noInitWarn: true });
 
     const chain = await apiInstance.rpc.system.chain();
     addLog(`Connected to chain: ${chain}`);
@@ -63,7 +88,7 @@ async function createApiInstance(rpcUrl) {
 export const initReadOnlyApi = async () => {
     if (state.consensusAddress && !state.readOnlyConsensusApi) {
         try {
-            state.readOnlyConsensusApi = await createApiInstance(CONSENSUS_RPC);
+            state.readOnlyConsensusApi = await createApiInstance();
             commit();
             addLog('Read-only Consensus API initialized (Mainnet)');
 
@@ -332,15 +357,18 @@ export const connect = async () => {
             return;
         }
         state.substrateAccounts = consensusAccounts;
-        await activateAccount(consensusAccounts[0]);
+        const account = consensusAccounts[0];
+        await activateAccount(account);
 
         // Balance first: a plain RPC read that must not wait on the
         // extension. Linked-EVM discovery runs AFTER, un-awaited — its
         // eth_requestAccounts blocks on the unlock prompt when the wallet
         // is locked, and hanging there used to leave the balance at 0.
+        // Read from the LOCAL account: a socket teardown mid-connect clears
+        // global state, and reading it back used to crash on null.meta.
         await updateBalance();
         addLog('Consensus connection successful');
-        fetchLinkedEvmAddress(state.consensusAccount.meta.source).catch(() => {});
+        fetchLinkedEvmAddress(account.meta.source).catch(() => {});
     } catch (error) {
         console.error('Consensus connection failed:', error);
         addLog(`Consensus connection failed: ${error.message}`);
@@ -364,7 +392,7 @@ const activateAccount = async (account) => {
     commit();
 
     if (!state.consensusApi) {
-        state.consensusApi = await createApiInstance(CONSENSUS_RPC);
+        state.consensusApi = await createApiInstance();
         commit();
     }
     const injector = await web3FromAddress(account.address);
