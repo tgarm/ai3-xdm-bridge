@@ -63,8 +63,6 @@ export const state = {
   substrateLinkedEvmBalance: '0',
   substrateLinkedEvmBalanceLoading: false,
   linkedEvmProvider: null,
-  fetchedTransactions: [],
-  historyStatus: 'idle', // 'idle' | 'ok' | 'unavailable'
   // EVM wallet
   evmProvider: null,
   evmAddress: localStorage.getItem('evmAddress') || '',

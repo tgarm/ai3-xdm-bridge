@@ -7,7 +7,7 @@
   "section": {
     "wallets": "Connect wallets",
     "transfer": "Transfer",
-    "track": "Progress & history"
+    "track": "Progress"
   },
   "notifications": {
     "success": "Success",
@@ -163,23 +163,13 @@
     }
   },
   "history": {
-    "title": "Transaction History",
     "refresh": "Refresh",
-    "empty": "No transactions yet. Your activity will appear here.",
-    "unavailable": "History service (Subscan) is currently unavailable. Shown entries may be stale — try again later.",
     "direction": "Direction",
     "status": "Status",
     "amount": "Amount",
     "hash": "Hash",
     "to": "To",
     "block": "Block",
-    "needsKey": "Subscan now requires an API key for history lookups. Transfers you start here are still tracked live in this panel.",
-    "apiKeyLabel": "Subscan API key",
-    "apiKeyPlaceholder": "Paste your Subscan API key",
-    "apiKeySave": "Save & retry",
-    "apiKeyManage": "API key",
-    "apiKeyGet": "Get a free key at pro.subscan.io",
-    "apiKeySaved": "API key saved — retrying history",
     "c2e": "Consensus → Auto-EVM",
     "e2c": "Auto-EVM → Consensus",
     "e2l": "EVM → Linked EVM (funding)",
@@ -202,5 +192,10 @@
   },
   "languageSwitcher": {
     "label": "Language"
+  },
+  "progress": {
+    "title": "Progress",
+    "empty": "No transfers in flight. Transfers you start will show up here in real time.",
+    "viewOnSubscan": "Full history on Subscan"
   }
 }

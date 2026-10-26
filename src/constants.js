@@ -9,9 +9,6 @@ export const EVM_CHAIN_NAME = 'Autonomys'; // As per Chainlist, though 'Auto-EVM
 export const EVM_NATIVE_CURRENCY = { name: 'AI3', symbol: 'AI3', decimals: 18 };
 export const EVM_EXPLORER_URLS = ['https://explorer.auto-evm.mainnet.autonomys.xyz'];
 
-const SUBSCAN_BASE = 'https://autonomys.api.subscan.io';
-export { SUBSCAN_BASE };
-
 // C2E arrival window: protocol docs say 100 domain blocks (~10 min), but the
 // 2026-10-26 mainnet field test measured ~25 min for funds to land. 30 min
 // keeps us polling long enough to see the real arrival instead of a fake failure.

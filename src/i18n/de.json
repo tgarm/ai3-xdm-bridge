@@ -7,7 +7,7 @@
   "section": {
     "wallets": "Wallets verbinden",
     "transfer": "Überweisung",
-    "track": "Fortschritt & Verlauf"
+    "track": "Fortschritt"
   },
   "notifications": {
     "success": "Erfolg",
@@ -163,22 +163,13 @@
     }
   },
   "history": {
-    "title": "Transaktionsverlauf",
     "refresh": "Aktualisieren",
-    "empty": "Noch keine Transaktionen. Ihre Aktivitäten werden hier angezeigt.",
     "direction": "Richtung",
     "status": "Status",
     "amount": "Betrag",
     "hash": "Hash",
     "to": "An",
     "block": "Block",
-    "needsKey": "Subscan verlangt jetzt einen API-Schlüssel für Verlaufsabfragen. Hier gestartete Übertragungen werden in diesem Panel weiterhin live verfolgt.",
-    "apiKeyLabel": "Subscan API-Schlüssel",
-    "apiKeyPlaceholder": "Fügen Sie Ihren Subscan API-Schlüssel ein",
-    "apiKeySave": "Speichern & erneut versuchen",
-    "apiKeyManage": "API-Schlüssel",
-    "apiKeyGet": "Kostenlosen Schlüssel auf pro.subscan.io holen",
-    "apiKeySaved": "API-Schlüssel gespeichert — Verlauf wird erneut geladen",
     "c2e": "Konsens → Auto-EVM",
     "e2c": "Auto-EVM → Konsens",
     "e2l": "EVM → verknüpfte EVM (Finanzierung)",
@@ -196,11 +187,15 @@
       "Completed": "Erhalten",
       "Finalized": "Finalisiert"
     },
-    "unavailable": "Der Verlaufsdienst (Subscan) ist derzeit nicht erreichbar. Angezeigte Einträge können veraltet sein — bitte später erneut versuchen.",
     "challengeEnds": "Challenge-Phase endet in: {0}",
     "markReceived": "Als erhalten markieren"
   },
   "languageSwitcher": {
     "label": "Sprache"
+  },
+  "progress": {
+    "title": "Fortschritt",
+    "empty": "Keine Übertragungen unterwegs. Gestartete Übertragungen erscheinen hier in Echtzeit.",
+    "viewOnSubscan": "Vollständiger Verlauf auf Subscan"
   }
 }

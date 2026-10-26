@@ -7,7 +7,7 @@
   "section": {
     "wallets": "Conectar carteras",
     "transfer": "Transferencia",
-    "track": "Progreso e historial"
+    "track": "Progreso"
   },
   "notifications": {
     "success": "Éxito",
@@ -163,22 +163,13 @@
     }
   },
   "history": {
-    "title": "Historial de Transacciones",
     "refresh": "Actualizar",
-    "empty": "Aún no hay transacciones. Su actividad aparecerá aquí.",
     "direction": "Dirección",
     "status": "Estado",
     "amount": "Cantidad",
     "hash": "Hash",
     "to": "A",
     "block": "Bloque",
-    "needsKey": "Subscan ahora requiere una clave API para consultar el historial. Las transferencias iniciadas aquí se siguen rastreando en vivo en este panel.",
-    "apiKeyLabel": "Clave API de Subscan",
-    "apiKeyPlaceholder": "Pegue su clave API de Subscan",
-    "apiKeySave": "Guardar y reintentar",
-    "apiKeyManage": "Clave API",
-    "apiKeyGet": "Obtenga una clave gratuita en pro.subscan.io",
-    "apiKeySaved": "Clave API guardada: reintentando el historial",
     "c2e": "Consenso → Auto-EVM",
     "e2c": "Auto-EVM → Consenso",
     "e2l": "EVM → EVM vinculada (financiación)",
@@ -196,11 +187,15 @@
       "Completed": "Recibida",
       "Finalized": "Finalizada"
     },
-    "unavailable": "El servicio de historial (Subscan) no está disponible actualmente. Las entradas mostradas pueden estar desactualizadas: inténtelo de nuevo más tarde.",
     "challengeEnds": "El período de desafío termina en: {0}",
     "markReceived": "Marcar como recibida"
   },
   "languageSwitcher": {
     "label": "Idioma"
+  },
+  "progress": {
+    "title": "Progreso",
+    "empty": "Ninguna transferencia en curso. Las que inicie aparecerán aquí en tiempo real.",
+    "viewOnSubscan": "Historial completo en Subscan"
   }
 }

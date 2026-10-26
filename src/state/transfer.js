@@ -78,10 +78,9 @@ export const updateBalances = async () => {
   }
 };
 
-export const fetchTransactions = async () => {
-  await substrate.fetchTransactions();
-  await checkFinality();
-};
+// Progress is chain-native only: this re-checks finality for tracked
+// transfers (Subscan is an external link in the UI, not a data source).
+export const refreshProgress = checkFinality;
 
 // Upgrade 'in block' C2E transfers to 'finalized on consensus' by comparing
 // the inclusion height against the finalized head — a pure chain read, no
@@ -116,16 +115,21 @@ export const checkFinality = async () => {
     addLog(`Finality check failed: ${error.message}`);
   }
 };
-export const connectConsensus = () => substrate.connect();
+export const connectConsensus = async () => {
+  await substrate.connect();
+  await checkFinality();
+};
 export const connectEVM = () => evm.connect();
 export const disconnectConsensus = () => substrate.disconnect();
 export const disconnectEVM = () => evm.disconnect();
 export const disconnectApis = () => substrate.disconnectApis();
 
 // Switch active Consensus account (account selector)
-export const switchConsensusAccount = (address) => {
+export const switchConsensusAccount = async (address) => {
   const account = state.substrateAccounts.find(acc => acc.address === address);
-  if (account) substrate.switchAccount(account);
+  if (!account) return;
+  await substrate.switchAccount(account);
+  await checkFinality();
 };
 
 export const setDirection = (next) => {
@@ -362,8 +366,7 @@ const handleTransferStatus = async ({ status }) => {
     }
   }
   if (status.isFinalized) {
-    addLog('Substrate transaction finalized, reload transactions');
-    fetchTransactions();
+    addLog('Substrate transaction finalized');
     if (state.direction === 'consensusToEVM') {
       const pendingTx = state.transactions.find(tx => ['pending', 'in block', 'bridging'].includes(tx.status) && tx.hash === currentPendingHash);
       if (pendingTx && ['pending', 'in block'].includes(pendingTx.status)) {
@@ -644,7 +647,6 @@ export const initEngine = () => {
   resumeTracking();
   if (state.consensusAddress || state.evmAddress) {
     updateBalances();
-    fetchTransactions();
   }
 };
 

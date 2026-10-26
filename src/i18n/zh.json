@@ -7,7 +7,7 @@
   "section": {
     "wallets": "连接钱包",
     "transfer": "发起转账",
-    "track": "进度与历史"
+    "track": "进度"
   },
   "notifications": {
     "success": "成功",
@@ -163,23 +163,13 @@
     }
   },
   "history": {
-    "title": "交易历史",
     "refresh": "刷新",
-    "empty": "暂无交易。您的活动将显示在此处。",
-    "unavailable": "历史服务（Subscan）当前不可用，显示的记录可能不是最新——请稍后重试。",
     "direction": "方向",
     "status": "状态",
     "amount": "数量",
     "hash": "哈希",
     "to": "至",
     "block": "区块",
-    "needsKey": "Subscan 现在要求 API key 才能查询历史。本应用发起的转账仍会在下方实时跟踪。",
-    "apiKeyLabel": "Subscan API key",
-    "apiKeyPlaceholder": "粘贴你的 Subscan API key",
-    "apiKeySave": "保存并重试",
-    "apiKeyManage": "API key",
-    "apiKeyGet": "在 pro.subscan.io 免费获取",
-    "apiKeySaved": "API key 已保存，正在重试历史查询",
     "c2e": "共识链 → Auto-EVM",
     "e2c": "Auto-EVM → 共识链",
     "e2l": "EVM → 关联地址（备资）",
@@ -202,5 +192,10 @@
   },
   "languageSwitcher": {
     "label": "语言"
+  },
+  "progress": {
+    "title": "进度",
+    "empty": "暂无进行中的转账。发起转账后会在这里实时显示。",
+    "viewOnSubscan": "在 Subscan 查看全部历史"
   }
 }

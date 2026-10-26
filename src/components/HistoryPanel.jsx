@@ -1,16 +1,14 @@
 // src/components/HistoryPanel.jsx
 //
-// Merged view: locally tracked transfers (live status: pending → in block →
-// bridging → arrived) plus Subscan-fetched history, deduped by hash with
-// local entries taking priority. The old Vue panel only rendered the fetched
-// list, so in-flight transfers were invisible until finalized — fixed here.
+// The PROGRESS panel: transfers started in this app, tracked live on-chain
+// (block scan + destination balance polling) and persisted across sessions.
+// Subscan is only an external link — it is no longer a data source (the API
+// now requires a key).
 
 import { useEffect, useMemo, useState } from 'react';
 import { useEngine } from '@/state/engine';
 import { useI18n } from '@/i18n';
-import { toast } from '@/ui/dialogs';
-import { fetchTransactions, markTransferComplete } from '@/state/transfer';
-import { getSubscanApiKey, setSubscanApiKey } from '@/state/substrateWallet';
+import { checkFinality, markTransferComplete } from '@/state/transfer';
 
 const SUBSCAN_URL = 'https://autonomys.subscan.io';
 const AUTO_EVM_EXPLORER = 'https://explorer.auto-evm.mainnet.autonomys.xyz';
@@ -56,40 +54,23 @@ export function HistoryPanel() {
   const { t, locale } = useI18n();
   const [isLoading, setIsLoading] = useState(false);
   const [now, setNow] = useState(Date.now());
-  const [showKeyInput, setShowKeyInput] = useState(false);
-  const [keyDraft, setKeyDraft] = useState('');
 
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(interval);
   }, []);
 
-  const list = useMemo(() => {
-    const map = new Map();
-    // local entries first — they win the dedup and carry the live status
-    for (const tx of s.transactions) map.set(tx.hash || `local-${tx.id}`, tx);
-    for (const tx of s.fetchedTransactions) {
-      const key = tx.hash || tx.extrinsicIndex;
-      if (key && !map.has(key)) map.set(key, tx);
-    }
-    return [...map.values()].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-  }, [s.transactions, s.fetchedTransactions]);
+  const list = useMemo(() =>
+    [...s.transactions].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)),
+  [s.transactions]);
 
   const refresh = async () => {
     setIsLoading(true);
     try {
-      await fetchTransactions();
+      await checkFinality();
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const saveApiKey = async () => {
-    setSubscanApiKey(keyDraft);
-    setKeyDraft('');
-    setShowKeyInput(false);
-    toast({ type: 'ok', title: t('notifications.success'), message: t('history.apiKeySaved'), duration: 2000 });
-    await refresh();
   };
 
   const relativeTime = (timestamp) => {
@@ -145,45 +126,26 @@ export function HistoryPanel() {
   return (
     <div className="card">
       <div className="card-head">
-        <h2>{t('history.title')}</h2>
+        <h2>{t('progress.title')}</h2>
         <span style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          <button className="btn link" onClick={() => setShowKeyInput((v) => !v)} title={t('history.apiKeyLabel')}>
-            {t('history.apiKeyManage')}
-          </button>
-          <button className="btn link" onClick={refresh} disabled={isLoading}>
+          {s.consensusAddress && (
+            <a
+              href={`${SUBSCAN_URL}/account/${s.consensusAddress}?tab=extrinsic`}
+              target="_blank"
+              rel="noreferrer"
+              title={t('progress.viewOnSubscan')}
+            >
+              {t('progress.viewOnSubscan')} ↗
+            </a>
+          )}
+          <button className="btn link" onClick={refresh} disabled={isLoading} title={t('history.refresh')}>
             {isLoading ? '…' : t('history.refresh')}
           </button>
         </span>
       </div>
 
-      {(s.historyStatus === 'needsKey' || showKeyInput) && (
-        <div className="notice">
-          <p style={{ margin: '0 0 8px' }}>{t('history.needsKey')}</p>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <input
-              type="text"
-              className="mono"
-              style={{ flex: 1 }}
-              placeholder={t('history.apiKeyPlaceholder')}
-              value={keyDraft}
-              onChange={(e) => setKeyDraft(e.target.value)}
-            />
-            <button className="btn small primary" onClick={saveApiKey} disabled={!keyDraft.trim()}>
-              {t('history.apiKeySave')}
-            </button>
-          </div>
-          <p className="small-text" style={{ margin: '6px 0 0' }}>
-            <a href="https://pro.subscan.io/" target="_blank" rel="noreferrer">{t('history.apiKeyGet')}</a>
-          </p>
-        </div>
-      )}
-
-      {s.historyStatus === 'unavailable' && (
-        <p className="warning">{t('history.unavailable')}</p>
-      )}
-
       {list.length === 0 ? (
-        <p className="empty-state">{t('history.empty')}</p>
+        <p className="empty-state">{t('progress.empty')}</p>
       ) : (
         <div className="tx-list">
           {list.map((tx, index) => (

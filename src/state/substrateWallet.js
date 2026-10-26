@@ -11,12 +11,10 @@ import { ApiPromise } from '@polkadot/api';
 import { BrowserProvider } from 'ethers';
 import { decodeAddress, encodeAddress } from '@polkadot/util-crypto';
 import { PacedWsProvider, probeProvider } from '@/lib/pacedProvider';
-import { CONSENSUS_RPC, AUTONOMYS_PREFIX, DECIMALS, SUBSCAN_BASE, DOMAIN_ID, EVM_RPC_HTTPS, C2E_ARRIVAL_MS } from '@/constants';
+import { CONSENSUS_RPC, AUTONOMYS_PREFIX, DECIMALS, DOMAIN_ID, EVM_RPC_HTTPS } from '@/constants';
 import { state, commit, addLog } from './engine';
 import { toast } from '@/ui/dialogs';
 import { t } from '@/i18n';
-
-export { C2E_ARRIVAL_MS };
 
 const disconnectApis = async () => {
     if (state.consensusApi) {
@@ -69,7 +67,6 @@ export const initReadOnlyApi = async () => {
             addLog('Read-only Consensus API initialized (Mainnet)');
 
             await updateBalance();
-            await fetchTransactions();
         } catch (error) {
             addLog(`Error initializing read-only Consensus API: ${error.message}`);
             await disconnect(); // Ensure state is cleared on failure
@@ -94,149 +91,6 @@ export const updateBalance = async () => {
             state.consensusBalanceLoading = false;
             commit();
         }
-    }
-};
-
-// Subscan shut down anonymous API access (2026-10-26: both v1 and v2 return
-// "strictly requires an API key", HTTP 400/code 403). A user-provided key is
-// stored in localStorage and sent as the x-api-key header.
-export const getSubscanApiKey = () => localStorage.getItem('subscanApiKey') || '';
-export const setSubscanApiKey = (key) => {
-  if (key) localStorage.setItem('subscanApiKey', key.trim());
-  else localStorage.removeItem('subscanApiKey');
-};
-
-// Fetch transactions (Subscan-backed; keeps old data and flags the failure
-// mode so the UI can distinguish "no history" / "API key required" /
-// "service down").
-export const fetchTransactions = async () => {
-    const apiToUse = state.readOnlyConsensusApi || state.consensusApi;
-    if (!apiToUse || !state.consensusAddress) return;
-
-    try {
-        addLog('Fetching Consensus extrinsics list via Subscan API V2...');
-        const apiKey = getSubscanApiKey();
-        const row = 100;
-        let page = 0;
-        let hasMore = true;
-        const allExtrinsics = [];
-
-        while (hasMore) {
-            const url = `${SUBSCAN_BASE}/api/v2/scan/extrinsics`;
-            const response = await fetch(url, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...(apiKey ? { 'x-api-key': apiKey } : {}),
-                },
-                body: JSON.stringify({
-                    address: state.consensusAddress,
-                    row,
-                    page,
-                }),
-            });
-
-            if (!response.ok) {
-                throw new Error(`Subscan API V2 error: ${response.status}`);
-            }
-
-            const data = await response.json();
-            addLog(`Subscan extrinsics page ${page} fetched: ${data.data?.extrinsics?.length || 0} items`);
-
-            if (data.code !== 0) {
-                if (data.code === 403 || /api key/i.test(data.message || '')) {
-                    state.historyStatus = 'needsKey';
-                    commit();
-                    addLog('Subscan requires an API key — history panel needs one to load cross-session history.');
-                    return;
-                }
-                throw new Error(`Subscan V2 error: ${data.message}`);
-            }
-
-            const txs = data.data.extrinsics || [];
-            allExtrinsics.push(...txs);
-            hasMore = txs.length === row;
-            page++;
-            if (page > 10) break;
-        }
-
-        state.historyStatus = 'ok';
-        commit();
-
-        // Filter to transporter.transfer
-        const transporterTxs = allExtrinsics
-            .filter(tx => tx.call_module === 'transporter' && tx.call_module_function === 'transfer')
-            .slice(0, 50);
-
-        addLog(`Found ${transporterTxs.length} transporter transfers; fetching details...`);
-
-        // Dedup: get existing hashes
-        const existingHashes = new Set(state.fetchedTransactions.map(tx => tx.hash));
-
-        // Use consistent decimals for calculations
-        const decimals = Number(10n ** DECIMALS);
-
-        let newCount = 0;
-
-        // Fetch details using Polkadot API only for new txs
-        for (const tx of transporterTxs) {
-            if (existingHashes.has(tx.extrinsic_hash)) continue;
-
-            try {
-                const blockNum = parseInt(tx.block_num);
-                const extrinsicIdx = parseInt(tx.extrinsic_index.split('-')[1]);
-                const blockHash = await apiToUse.rpc.chain.getBlockHash(blockNum);
-                const block = await apiToUse.rpc.chain.getBlock(blockHash);
-                const extrinsic = block.block.extrinsics[extrinsicIdx];
-
-                if (extrinsic && extrinsic.method.section === 'transporter' && extrinsic.method.method === 'transfer') {
-                    const args = extrinsic.method.toHuman().args || {};
-                    // Handle comma-separated numbers in args.amount
-                    const amountStr = (args.amount || '0').toString().replace(/,/g, '');
-                    const amountPlanck = BigInt(amountStr);
-                    const amount = Number(amountPlanck) / decimals;
-                    const destAccount = args.dst_location.accountId.AccountId20 || '';
-                    const domainId = args.dst_location.chainId.Domain || '';
-
-                    const transferTime = new Date(tx.block_timestamp * 1000);
-                    const expectedArrival = destAccount.startsWith('0x') ? new Date(transferTime.getTime() + C2E_ARRIVAL_MS).toISOString() : null;
-                    const direction = destAccount.startsWith('0x') ? 'consensusToEVM' : 'consensusToConsensus';
-
-                    addLog(`Transporter Tx ${tx.extrinsic_hash}: ${amount} AI3 to ${destAccount} (Domain: ${domainId})`);
-
-                    state.fetchedTransactions.push({
-                        type: 'consensus',
-                        blockNumber: blockNum,
-                        extrinsicIndex: tx.extrinsic_index,
-                        hash: tx.extrinsic_hash,
-                        method: `${tx.call_module}.${tx.call_module_function}`,
-                        amount: amount,
-                        destination: destAccount,
-                        domainId: domainId,
-                        direction: direction,
-                        expectedArrival: expectedArrival,
-                        tip: tx.tip || '0',
-                        nonce: tx.nonce,
-                        success: tx.success,
-                        fee: (Number(tx.fee || 0) / decimals).toFixed(6),
-                        timestamp: transferTime.toISOString(),
-                        finalized: tx.finalized,
-                    });
-                    commit();
-                    newCount++;
-                }
-            } catch (detailError) {
-                addLog(`Error fetching details for tx ${tx.extrinsic_hash}: ${detailError.message}`);
-            }
-        }
-
-        state.fetchedTransactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-        commit();
-        addLog(`Processed ${newCount} new Consensus transporter transfers (total: ${state.fetchedTransactions.length})`);
-    } catch (error) {
-        state.historyStatus = 'unavailable';
-        commit();
-        addLog(`History service unavailable (Subscan): ${error.message}`);
     }
 };
 
@@ -429,8 +283,14 @@ export const connect = async () => {
         addLog('Attempting to connect Consensus wallet...');
         await web3Enable('ai3-transfer-app');
         const allAccounts = await web3Accounts();
-        if (allAccounts.length === 0) {
-            addLog('No accounts found in extension');
+        // SubWallet/Talisman also expose their EVM accounts here (type
+        // 'ethereum', 0x… addresses). Only consensus-chain accounts are
+        // usable on this side — decoding a 0x address into an Autonomys
+        // address would silently produce garbage.
+        const consensusAccounts = allAccounts.filter(acc => acc.type !== 'ethereum');
+        addLog(`web3Accounts: ${allAccounts.length} total, ${consensusAccounts.length} consensus-chain (EVM accounts filtered)`);
+        if (consensusAccounts.length === 0) {
+            addLog('No consensus-chain accounts found in extension');
             toast({
                 type: 'warn',
                 title: t('notifications.noConsensusAccounts.title'),
@@ -439,16 +299,15 @@ export const connect = async () => {
             });
             return;
         }
-        state.substrateAccounts = allAccounts;
-        await activateAccount(allAccounts[0]);
+        state.substrateAccounts = consensusAccounts;
+        await activateAccount(consensusAccounts[0]);
 
-        // Balance and history first: plain RPC reads that must not wait on
-        // the extension. Linked-EVM discovery runs AFTER, un-awaited — its
+        // Balance first: a plain RPC read that must not wait on the
+        // extension. Linked-EVM discovery runs AFTER, un-awaited — its
         // eth_requestAccounts blocks on the unlock prompt when the wallet
         // is locked, and hanging there used to leave the balance at 0.
         await updateBalance();
         addLog('Consensus connection successful');
-        fetchTransactions();
         fetchLinkedEvmAddress(state.consensusAccount.meta.source).catch(() => {});
     } catch (error) {
         console.error('Consensus connection failed:', error);
@@ -488,16 +347,13 @@ const activateAccount = async (account) => {
 export const switchAccount = async (account) => {
     if (!account || !state.consensusApi || state.consensusAccount?.address === account.address) return;
     try {
-        state.fetchedTransactions = [];
         state.substrateLinkedEvmAddress = '';
         state.substrateLinkedEvmBalance = '0';
         state.linkedEvmProvider = null;
-        state.historyStatus = 'idle';
         commit();
 
         await activateAccount(account);
         await updateBalance();
-        fetchTransactions();
         fetchLinkedEvmAddress(account.meta.source).catch(() => {});
     } catch (error) {
         addLog(`Account switch failed: ${error.message}`);
@@ -520,8 +376,6 @@ export const disconnect = async () => {
     state.substrateLinkedEvmBalance = '0';
     state.substrateLinkedEvmBalanceLoading = false;
     state.linkedEvmProvider = null;
-    state.fetchedTransactions = [];
-    state.historyStatus = 'idle';
     commit();
     // Note: We don't clear localStorage as consensus address isn't stored there.
     addLog('Consensus wallet disconnected and state cleared.');
