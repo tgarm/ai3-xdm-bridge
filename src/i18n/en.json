@@ -149,11 +149,6 @@
     "amountPrecision": "At most 18 decimal places are supported. Please adjust the amount.",
     "button": "Transfer",
     "buttonTransferring": "Transferring...",
-    "e2cWarning": {
-      "title": "Preliminary Testing Notice",
-      "message": "The Auto-EVM to Consensus transfer mode is for preliminary testing only. Transaction progress and history are not available for this type of transfer. Please proceed with caution.",
-      "confirmButton": "I Understand"
-    },
     "e2cConfirmed": {
       "title": "Transfer Confirmed on Auto-EVM",
       "message": "Your transfer of {0} AI3 to {1} has been confirmed on Auto-EVM. Funds arrive on the Consensus chain after the ~24-hour challenge period. Keep this entry in the history panel and mark it as received once the funds land."

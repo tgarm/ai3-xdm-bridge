@@ -149,11 +149,6 @@
     "amountPrecision": "最多支持 18 位小数，请调整金额。",
     "button": "转账",
     "buttonTransferring": "转账中...",
-    "e2cWarning": {
-      "title": "初步测试通知",
-      "message": "Auto-EVM 到共识链的转账模式仅用于初步测试。此类转账无法查看交易进度和历史记录。请谨慎操作。",
-      "confirmButton": "我明白"
-    },
     "e2cConfirmed": {
       "title": "转账已在 Auto-EVM 确认",
       "message": "您向 {1} 转账 {0} AI3 已在 Auto-EVM 确认。资金将在约 24 小时挑战期后到达共识链。请在历史面板保留该记录，到账后点击「标记已收到」。"

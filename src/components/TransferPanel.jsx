@@ -4,8 +4,6 @@
 // silently disabled — when inactive, a hint line states exactly why. An
 // unread balance shows '—' (never a fake 0).
 
-import { useState } from 'react';
-import { alert } from '@/ui/dialogs';
 import { useEngine } from '@/state/engine';
 import { useI18n } from '@/i18n';
 import { MIN_TRANSFER_AMOUNT } from '@/constants';
@@ -63,16 +61,11 @@ export function TransferPanel() {
     ? (statusLabel(s.currentStatus, t) || t('transfer.buttonTransferring'))
     : t('transfer.button');
 
+  // No confirm modal: nothing is sent until the transfer button (and the
+  // wallet signature); the ~24h challenge period stays visible as a hint
+  // line the whole time E2C is selected.
   const onSwap = () => {
-    const next = isC2E ? 'evmToConsensus' : 'consensusToEVM';
-    setDirection(next);
-    if (next === 'evmToConsensus') {
-      alert({
-        title: t('transfer.e2cWarning.title'),
-        message: t('transfer.e2cWarning.message'),
-        confirmText: t('transfer.e2cWarning.confirmButton'),
-      });
-    }
+    setDirection(isC2E ? 'evmToConsensus' : 'consensusToEVM');
   };
 
   return (
