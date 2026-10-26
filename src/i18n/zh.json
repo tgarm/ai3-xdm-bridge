@@ -3,7 +3,9 @@
     "title": "AI3 跨域转账",
     "tagline": "Autonomys 跨域桥 · 纯前端",
     "footer": "纯前端 · 私钥不离开钱包 · XDM 协议费约 0.01% · 最低转账 1 AI3",
-    "source": "开源：源代码见 GitHub"
+    "source": "开源：源代码见 GitHub",
+    "permadrive": "PermaDrive — 永久存储",
+    "ai3land": "更多工具见 ai3.land"
   },
   "section": {
     "wallets": "连接钱包",

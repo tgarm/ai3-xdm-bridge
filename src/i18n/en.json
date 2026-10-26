@@ -3,7 +3,9 @@
     "title": "AI3 Cross-Domain Transfer",
     "tagline": "Autonomys cross-domain bridge · pure frontend",
     "footer": "Pure frontend · keys stay in your wallet · XDM protocol fee ~0.01% · min transfer 1 AI3",
-    "source": "Open source: source code on GitHub"
+    "source": "Open source: source code on GitHub",
+    "permadrive": "PermaDrive — permanent storage",
+    "ai3land": "more tools at ai3.land"
   },
   "section": {
     "wallets": "Connect wallets",

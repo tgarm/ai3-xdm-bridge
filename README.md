@@ -38,4 +38,9 @@ This app still earns its keep with paced-RPC rate-limit protection (the public R
 - In-flight transfer logic is ported 1:1 from the field-tested Vue implementation into framework-agnostic modules (`src/state/`, `src/lib/`); `src/lib/amount.js` keeps its vitest coverage.
 - i18n (en/zh/es/de) kept, now served by a minimal built-in loader; dark/light toggle and language switch live in the header.
 
+### Sister projects
+
+- **[PermaDrive](https://permadrive.ai3.land/)** — permanent on-chain file storage for Autonomys · [source](https://github.com/tgarm/permadrive)
+- **[ai3.land](https://ai3.land/)** — landing page for the tool family
+
 Co-operation is welcome.

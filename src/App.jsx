@@ -56,6 +56,10 @@ export default function App() {
         {t('app.footer')}
         {' · '}
         <a href="https://github.com/tgarm/ai3-xdm-bridge" target="_blank" rel="noreferrer noopener">{t('app.source')}</a>
+        {' · '}
+        <a href="https://permadrive.ai3.land/" target="_blank" rel="noreferrer noopener">{t('app.permadrive')}</a>
+        {' · '}
+        <a href="https://ai3.land/" target="_blank" rel="noreferrer noopener">{t('app.ai3land')}</a>
       </footer>
       <DialogHost />
     </div>
