@@ -3,13 +3,24 @@ XDM Bridge Web Interface for AI3
 
 XDM - Cross Domain
 
-The official XDM transfer method described in Autonomys at (https://docs.autonomys.xyz/farming/guides/xdm/), is not quite user friendly, user need to use polkadot.js.org development interface, and fill address and transfer amount in a very long format manually.
+The official XDM transfer method described in Autonomys docs (https://docs.autonomys.xyz/xdm/substrate-portal — the old `/farming/guides/xdm/` URL is gone), is not quite user friendly, user need to use polkadot.js.org development interface, and fill address and transfer amount in a very long format manually.
 
 To simplify the transfer operation, I created this web interface.
 
 User may easily transfer from Consensus to Auto-EVM domain, and vice versa.
 
 The transfer progress/history panel is working for Consensus to Auto-EVM transfer. For Auto-EVM to Consensus, the transfer is sent via the transporter precompile; the app then tracks the ~24h challenge period in the history panel with a manual "mark as received" confirmation.
+
+### Ecosystem update (2026-10-26)
+
+Times have changed since this bridge was first built — the XDM protocol is unchanged, but the surrounding ecosystem is not:
+
+- The official docs were restructured (XDM now lives under `docs.autonomys.xyz/xdm/`) and for most users now recommend the community **Subspace Tools XDM sender** (`subspace.tools/xdm/send`): both transfer directions, an address-based transfer-status page, an XDM channel inspector, and a WAI3 wrap/unwrap tool.
+- An official **Hyperlane-based bridge** (`bridge.mainnet.autonomys.xyz`) now connects Auto EVM to external chains — Ethereum, BNB Chain and Solana are all live. XDM remains the native consensus↔domain path.
+- Protocol parameters are unchanged: min transfer 1 AI3, C2E ~100 consensus blocks (docs say ~10 min; field-measured ~25 min), E2C ~14,400 domain blocks (~1 day challenge period); the XDM fee is now documented as 5x standard weight.
+- `@autonomys/auto-xdm` 1.6.5+ ships the transporter precompile helpers this app hand-rolled for E2C (its "mainnet coming soon" comment is stale — the precompile has long been deployed on mainnet).
+
+This app still earns its keep with paced-RPC rate-limit protection (the public RPCs IP-ban aggressive clients), the 30-minute arrival window, multi-account support, Subscan-backed history and i18n — but for a one-off transfer, subspace.tools is the lower-effort path; consider contributing improvements there instead of parallel feature work. Full survey: `doc/06-xdm-bridge-improvements.md` §五 in the `tgarm/permadrive` repo.
 
 ### Reliability notes (2026-10-26 rework)
 
