@@ -1,6 +1,13 @@
 {
   "app": {
-    "title": "AI3 跨域转账"
+    "title": "AI3 跨域转账",
+    "tagline": "Autonomys 跨域桥 · 纯前端",
+    "footer": "纯前端 · 私钥不离开钱包 · XDM 协议费约 0.01% · 最低转账 1 AI3"
+  },
+  "section": {
+    "wallets": "连接钱包",
+    "transfer": "发起转账",
+    "track": "进度与历史"
   },
   "notifications": {
     "success": "成功",
@@ -45,7 +52,30 @@
       "title": "转账发起失败",
       "hint": "请确认两个钱包均已连接且余额充足，然后重试。"
     },
-    "e2cProviderMissing": "关联的 EVM 钱包（SubWallet/Talisman 的 EVM 账户）不可用。E2C 转账需从该账户经 transporter precompile 发出。"
+    "e2cProviderMissing": "关联的 EVM 钱包（SubWallet/Talisman 的 EVM 账户）不可用。E2C 转账需从该账户经 transporter precompile 发出。",
+    "noConsensusAccounts": {
+      "title": "未找到共识链账户",
+      "message": "请安装并解锁 Substrate 钱包扩展（SubWallet 或 Talisman），刷新后重试。"
+    },
+    "consensusConnectFailed": {
+      "title": "共识链钱包连接失败",
+      "message": "连接失败：{0}。请确认扩展已安装、已解锁且包含账户，然后重试。"
+    },
+    "evmLinkSkipped": {
+      "title": "跳过 EVM 关联",
+      "message": "当前钱包（'{0}'）未提供关联的 EVM 地址。EVM → 共识链转账不可用；共识链 → EVM 不受影响。"
+    },
+    "accountSwitchFailed": {
+      "title": "切换账户失败"
+    },
+    "evmWalletNotFound": {
+      "title": "未找到 EVM 钱包",
+      "message": "请安装 EVM 兼容钱包（如 MetaMask）后连接。"
+    },
+    "evmConnectFailed": {
+      "title": "EVM 钱包连接失败",
+      "message": "无法连接钱包：{0}"
+    }
   },
   "wallet": {
     "evmChain": "EVM 链",
@@ -56,7 +86,14 @@
     "linkedEvmAddress": "关联的EVM地址",
     "copyAddressTooltip": "点击复制地址",
     "refreshBalance": "刷新余额",
-    "selectAccount": "选择账户"
+    "selectAccount": "选择账户",
+    "connected": "已连接",
+    "disconnected": "未连接",
+    "disconnect": "断开",
+    "evmNotDetected": "未检测到 EVM 钱包扩展（MetaMask 等）"
+  },
+  "theme": {
+    "title": "切换明暗主题"
   },
   "logging": {
     "logs": "日志",
@@ -80,6 +117,15 @@
     "c2eTitle": "共识 → Auto-EVM",
     "e2cTitle": "Auto-EVM → 共识",
     "amountPlaceholder": "AI3 数量",
+    "available": "可用余额",
+    "receive": "预计到账 ≈ {0} AI3（XDM 费约 0.01%）",
+    "needConsensusWallet": "请先连接共识链钱包",
+    "needBothWallets": "请先连接共识链与 EVM 两个钱包",
+    "needLinkedEvm": "此转账需要 Substrate 钱包（SubWallet/Talisman）关联的 EVM 账户",
+    "amountTooLow": "最低转账 {0} AI3",
+    "insufficientBalance": "源链余额不足",
+    "max": "最大",
+    "swapTitle": "切换方向",
     "minTransfer": "最小转账金额: {0} AI3",
     "arrivalNoteC2E": "到账 ≈ 金额 × 99.99%（XDM 协议费约 0.01%）。通常 10–30 分钟，偶尔更久。",
     "arrivalNoteE2C": "资金将在约 24 小时挑战期后到达共识链。",
@@ -113,10 +159,25 @@
     "hash": "哈希",
     "to": "至",
     "block": "区块",
+    "c2e": "共识链 → Auto-EVM",
+    "e2c": "Auto-EVM → 共识链",
+    "e2l": "EVM → 关联地址（备资）",
+    "c2c": "共识链 → 共识链",
+    "arrived": "已到账",
     "estimatedArrival": "预计 EVM 到达时间: {0}",
     "challengeEnds": "挑战期剩余: {0}",
     "markReceived": "标记已收到",
-    "statusValues": { "Success": "成功", "Failed": "失败", "Pending": "处理中", "Unknown": "未知" }
+    "statusValues": {
+      "Success": "成功",
+      "Failed": "失败",
+      "Pending": "处理中",
+      "Unknown": "未知",
+      "InBlock": "已入块",
+      "Bridging": "桥接中",
+      "Arrived": "已到账",
+      "Completed": "已收到",
+      "Finalized": "已最终确认"
+    }
   },
   "languageSwitcher": {
     "label": "语言"

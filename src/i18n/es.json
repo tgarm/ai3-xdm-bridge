@@ -1,6 +1,13 @@
 {
   "app": {
-    "title": "Transferencia Interdominio AI3"
+    "title": "Transferencia Interdominio AI3",
+    "tagline": "Puente interdominio de Autonomys · frontend puro",
+    "footer": "Frontend puro · las claves nunca salen de su cartera · comisión XDM ~0,01 % · transferencia mínima 1 AI3"
+  },
+  "section": {
+    "wallets": "Conectar carteras",
+    "transfer": "Transferencia",
+    "track": "Progreso e historial"
   },
   "notifications": {
     "success": "Éxito",
@@ -45,7 +52,30 @@
       "title": "Error al iniciar la transferencia",
       "hint": "Asegúrese de que ambas carteras estén conectadas y de que tiene saldo suficiente, e inténtelo de nuevo."
     },
-    "e2cProviderMissing": "La cartera EVM vinculada (cuenta EVM de SubWallet/Talisman) no está disponible. Las transferencias E2C se envían desde esa cuenta mediante el precompilado transporter."
+    "e2cProviderMissing": "La cartera EVM vinculada (cuenta EVM de SubWallet/Talisman) no está disponible. Las transferencias E2C se envían desde esa cuenta mediante el precompilado transporter.",
+    "noConsensusAccounts": {
+      "title": "No se encontraron cuentas de Consenso",
+      "message": "Instale y desbloquee una extensión de cartera Substrate (SubWallet o Talisman), actualice e inténtelo de nuevo."
+    },
+    "consensusConnectFailed": {
+      "title": "Error al conectar la cartera de Consenso",
+      "message": "Conexión fallida: {0}. Asegúrese de que la extensión esté instalada, desbloqueada y con cuentas, e inténtelo de nuevo."
+    },
+    "evmLinkSkipped": {
+      "title": "Vinculación EVM omitida",
+      "message": "La cartera conectada ('{0}') no expone una dirección EVM vinculada. Las transferencias EVM → Consenso están deshabilitadas; Consenso → EVM funciona."
+    },
+    "accountSwitchFailed": {
+      "title": "Error al cambiar de cuenta"
+    },
+    "evmWalletNotFound": {
+      "title": "Cartera EVM no encontrada",
+      "message": "Instale una cartera compatible con EVM (p. ej., MetaMask) para conectarse."
+    },
+    "evmConnectFailed": {
+      "title": "Error al conectar la cartera EVM",
+      "message": "No se pudo conectar a la cartera: {0}"
+    }
   },
   "wallet": {
     "evmChain": "Cadena EVM",
@@ -56,7 +86,14 @@
     "linkedEvmAddress": "Dirección EVM Vinculada",
     "copyAddressTooltip": "Haga clic para copiar la dirección",
     "refreshBalance": "Actualizar Saldo",
-    "selectAccount": "Seleccionar cuenta"
+    "selectAccount": "Seleccionar cuenta",
+    "connected": "Conectada",
+    "disconnected": "No conectada",
+    "disconnect": "Desconectar",
+    "evmNotDetected": "No se detectó una extensión de cartera EVM (MetaMask, etc.)"
+  },
+  "theme": {
+    "title": "Cambiar tema oscuro / claro"
   },
   "logging": {
     "logs": "Registros",
@@ -80,6 +117,15 @@
     "c2eTitle": "Consenso → Auto-EVM",
     "e2cTitle": "Auto-EVM → Consenso",
     "amountPlaceholder": "Cantidad en AI3",
+    "available": "Disponible",
+    "receive": "Recepción estimada ≈ {0} AI3 (comisión XDM ~0,01 %)",
+    "needConsensusWallet": "Conecte la cartera de Consenso para transferir",
+    "needBothWallets": "Conecte ambas carteras para transferir",
+    "needLinkedEvm": "Esta transferencia requiere la cuenta EVM vinculada de su cartera Substrate (SubWallet/Talisman)",
+    "amountTooLow": "La transferencia mínima es {0} AI3",
+    "insufficientBalance": "Saldo insuficiente en el origen",
+    "max": "MÁX",
+    "swapTitle": "Cambiar dirección",
     "minTransfer": "Transferencia mínima: {0} AI3",
     "button": "Transferir",
     "prepareFundButton": "Preparar Fondos",
@@ -112,12 +158,22 @@
     "hash": "Hash",
     "to": "A",
     "block": "Bloque",
+    "c2e": "Consenso → Auto-EVM",
+    "e2c": "Auto-EVM → Consenso",
+    "e2l": "EVM → EVM vinculada (financiación)",
+    "c2c": "Consenso → Consenso",
+    "arrived": "Recibido",
     "estimatedArrival": "Llegada estimada a EVM: {0}",
     "statusValues": {
       "Success": "Éxito",
       "Failed": "Fallido",
       "Pending": "Pendiente",
-      "Unknown": "Desconocido"
+      "Unknown": "Desconocido",
+      "InBlock": "En bloque",
+      "Bridging": "En tránsito",
+      "Arrived": "Recibido",
+      "Completed": "Recibida",
+      "Finalized": "Finalizada"
     },
     "unavailable": "El servicio de historial (Subscan) no está disponible actualmente. Las entradas mostradas pueden estar desactualizadas: inténtelo de nuevo más tarde.",
     "challengeEnds": "El período de desafío termina en: {0}",

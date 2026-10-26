@@ -11,3 +11,10 @@ export const EVM_EXPLORER_URLS = ['https://explorer.auto-evm.mainnet.autonomys.x
 
 const SUBSCAN_BASE = 'https://autonomys.api.subscan.io';
 export { SUBSCAN_BASE };
+
+// C2E arrival window: protocol docs say 100 domain blocks (~10 min), but the
+// 2026-10-26 mainnet field test measured ~25 min for funds to land. 30 min
+// keeps us polling long enough to see the real arrival instead of a fake failure.
+export const C2E_ARRIVAL_MS = 30 * 60 * 1000;
+// E2C goes through the transporter precompile and has a 1-day challenge period.
+export const E2C_CHALLENGE_MS = 24 * 60 * 60 * 1000;

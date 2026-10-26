@@ -1,6 +1,13 @@
 {
   "app": {
-    "title": "AI3 Cross-Domain Transfer"
+    "title": "AI3 Cross-Domain Transfer",
+    "tagline": "Autonomys Cross-Domain-Bridge · reines Frontend",
+    "footer": "Reines Frontend · Schlüssel bleiben in Ihrer Wallet · XDM-Gebühr ca. 0,01 % · Mindestübertragung 1 AI3"
+  },
+  "section": {
+    "wallets": "Wallets verbinden",
+    "transfer": "Überweisung",
+    "track": "Fortschritt & Verlauf"
   },
   "notifications": {
     "success": "Erfolg",
@@ -45,7 +52,30 @@
       "title": "Übertragung konnte nicht gestartet werden",
       "hint": "Bitte stellen Sie sicher, dass beide Wallets verbunden sind und ausreichend Guthaben vorhanden ist, und versuchen Sie es erneut."
     },
-    "e2cProviderMissing": "Die verknüpfte EVM-Wallet (EVM-Konto von SubWallet/Talisman) ist nicht verfügbar. E2C-Übertragungen werden über das Transporter-Precompile von diesem Konto gesendet."
+    "e2cProviderMissing": "Die verknüpfte EVM-Wallet (EVM-Konto von SubWallet/Talisman) ist nicht verfügbar. E2C-Übertragungen werden über das Transporter-Precompile von diesem Konto gesendet.",
+    "noConsensusAccounts": {
+      "title": "Keine Konsens-Konten gefunden",
+      "message": "Installieren und entsperren Sie eine Substrate-Wallet-Erweiterung (SubWallet oder Talisman), laden Sie neu und versuchen Sie es erneut."
+    },
+    "consensusConnectFailed": {
+      "title": "Verbindung der Konsens-Wallet fehlgeschlagen",
+      "message": "Verbindung fehlgeschlagen: {0}. Bitte stellen Sie sicher, dass die Erweiterung installiert, entsperrt und mit Konten versehen ist, und versuchen Sie es erneut."
+    },
+    "evmLinkSkipped": {
+      "title": "EVM-Verknüpfung übersprungen",
+      "message": "Die verbundene Wallet („{0}“) legt keine verknüpfte EVM-Adresse offen. EVM → Konsens-Übertragungen sind deaktiviert; Konsens → EVM funktioniert."
+    },
+    "accountSwitchFailed": {
+      "title": "Kontowechsel fehlgeschlagen"
+    },
+    "evmWalletNotFound": {
+      "title": "Keine EVM-Wallet gefunden",
+      "message": "Installieren Sie eine EVM-kompatible Wallet (z. B. MetaMask), um sich zu verbinden."
+    },
+    "evmConnectFailed": {
+      "title": "Verbindung der EVM-Wallet fehlgeschlagen",
+      "message": "Verbindung zur Wallet nicht möglich: {0}"
+    }
   },
   "wallet": {
     "evmChain": "EVM-Kette",
@@ -56,7 +86,14 @@
     "linkedEvmAddress": "Verknüpfte EVM-Adresse",
     "copyAddressTooltip": "Klicken, um die Adresse zu kopieren",
     "refreshBalance": "Kontostand aktualisieren",
-    "selectAccount": "Konto auswählen"
+    "selectAccount": "Konto auswählen",
+    "connected": "Verbunden",
+    "disconnected": "Nicht verbunden",
+    "disconnect": "Trennen",
+    "evmNotDetected": "Keine EVM-Wallet-Erweiterung erkannt (MetaMask etc.)"
+  },
+  "theme": {
+    "title": "Dunkles/helles Thema umschalten"
   },
   "logging": {
     "logs": "Protokolle",
@@ -80,6 +117,15 @@
     "c2eTitle": "Konsens → Auto-EVM",
     "e2cTitle": "Auto-EVM → Konsens",
     "amountPlaceholder": "Betrag in AI3",
+    "available": "Verfügbar",
+    "receive": "Voraussichtlicher Empfang ≈ {0} AI3 (XDM-Gebühr ca. 0,01 %)",
+    "needConsensusWallet": "Bitte verbinden Sie die Konsens-Wallet, um zu übertragen",
+    "needBothWallets": "Bitte verbinden Sie beide Wallets, um zu übertragen",
+    "needLinkedEvm": "Diese Übertragung benötigt das verknüpfte EVM-Konto Ihrer Substrate-Wallet (SubWallet/Talisman)",
+    "amountTooLow": "Mindestübertragung ist {0} AI3",
+    "insufficientBalance": "Unzureichendes Guthaben auf der Quellseite",
+    "max": "MAX",
+    "swapTitle": "Richtung wechseln",
     "minTransfer": "Mindestübertragung: {0} AI3",
     "button": "Übertragen",
     "prepareFundButton": "Guthaben vorbereiten",
@@ -112,14 +158,24 @@
     "hash": "Hash",
     "to": "An",
     "block": "Block",
+    "c2e": "Konsens → Auto-EVM",
+    "e2c": "Auto-EVM → Konsens",
+    "e2l": "EVM → verknüpfte EVM (Finanzierung)",
+    "c2c": "Konsens → Konsens",
+    "arrived": "Angekommen",
     "estimatedArrival": "Voraussichtliche EVM-Ankunft: {0}",
     "statusValues": {
       "Success": "Erfolgreich",
       "Failed": "Fehlgeschlagen",
       "Pending": "Ausstehend",
-      "Unknown": "Unbekannt"
+      "Unknown": "Unbekannt",
+      "InBlock": "In einem Block",
+      "Bridging": "In Übertragung",
+      "Arrived": "Angekommen",
+      "Completed": "Erhalten",
+      "Finalized": "Finalisiert"
     },
-    "unavailable": "Der Verlaufsdiest (Subscan) ist derzeit nicht erreichbar. Angezeigte Einträge können veraltet sein — bitte später erneut versuchen.",
+    "unavailable": "Der Verlaufsdienst (Subscan) ist derzeit nicht erreichbar. Angezeigte Einträge können veraltet sein — bitte später erneut versuchen.",
     "challengeEnds": "Challenge-Phase endet in: {0}",
     "markReceived": "Als erhalten markieren"
   },

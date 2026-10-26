@@ -1,6 +1,13 @@
 {
   "app": {
-    "title": "AI3 Cross-Domain Transfer"
+    "title": "AI3 Cross-Domain Transfer",
+    "tagline": "Autonomys cross-domain bridge · pure frontend",
+    "footer": "Pure frontend · keys stay in your wallet · XDM protocol fee ~0.01% · min transfer 1 AI3"
+  },
+  "section": {
+    "wallets": "Connect wallets",
+    "transfer": "Transfer",
+    "track": "Progress & history"
   },
   "notifications": {
     "success": "Success",
@@ -45,7 +52,30 @@
       "title": "Transfer Initiation Failed",
       "hint": "Please ensure both wallets are connected, you have sufficient balance, and try again."
     },
-    "e2cProviderMissing": "The linked EVM wallet (SubWallet/Talisman EVM account) is not available. E2C transfers are sent from that account via the transporter precompile."
+    "e2cProviderMissing": "The linked EVM wallet (SubWallet/Talisman EVM account) is not available. E2C transfers are sent from that account via the transporter precompile.",
+    "noConsensusAccounts": {
+      "title": "No Consensus accounts found",
+      "message": "Install and unlock a Substrate wallet extension (SubWallet or Talisman), then refresh and try again."
+    },
+    "consensusConnectFailed": {
+      "title": "Consensus wallet connection failed",
+      "message": "Connection failed: {0}. Make sure the extension is installed, unlocked, and has accounts, then try again."
+    },
+    "evmLinkSkipped": {
+      "title": "EVM linking skipped",
+      "message": "The connected wallet ('{0}') does not expose a linked EVM address. EVM → Consensus transfers are disabled; Consensus → EVM works."
+    },
+    "accountSwitchFailed": {
+      "title": "Account switch failed"
+    },
+    "evmWalletNotFound": {
+      "title": "EVM wallet not found",
+      "message": "Install an EVM-compatible wallet (e.g. MetaMask) to connect."
+    },
+    "evmConnectFailed": {
+      "title": "EVM wallet connection failed",
+      "message": "Could not connect to the wallet: {0}"
+    }
   },
   "wallet": {
     "evmChain": "EVM Chain",
@@ -56,7 +86,14 @@
     "linkedEvmAddress": "Linked EVM Address",
     "copyAddressTooltip": "Click to copy address",
     "refreshBalance": "Refresh Balance",
-    "selectAccount": "Select account"
+    "selectAccount": "Select account",
+    "connected": "Connected",
+    "disconnected": "Not connected",
+    "disconnect": "Disconnect",
+    "evmNotDetected": "No EVM wallet extension detected (MetaMask etc.)"
+  },
+  "theme": {
+    "title": "Toggle dark / light theme"
   },
   "logging": {
     "logs": "Logs",
@@ -80,6 +117,15 @@
     "c2eTitle": "Consensus → Auto-EVM",
     "e2cTitle": "Auto-EVM → Consensus",
     "amountPlaceholder": "Amount in AI3",
+    "available": "Available",
+    "receive": "Estimated receipt ≈ {0} AI3 (XDM fee ~0.01%)",
+    "needConsensusWallet": "Connect the Consensus wallet to transfer",
+    "needBothWallets": "Connect both wallets to transfer",
+    "needLinkedEvm": "This transfer needs the linked EVM account of your Substrate wallet (SubWallet/Talisman)",
+    "amountTooLow": "Minimum transfer is {0} AI3",
+    "insufficientBalance": "Insufficient source balance",
+    "max": "MAX",
+    "swapTitle": "Swap direction",
     "minTransfer": "Minimum transfer: {0} AI3",
     "arrivalNoteC2E": "Arrival ≈ amount × 99.99% (XDM protocol fee ~0.01%). Usually 10–30 minutes, occasionally longer.",
     "arrivalNoteE2C": "Funds arrive on Consensus after the ~24-hour challenge period.",
@@ -113,10 +159,25 @@
     "hash": "Hash",
     "to": "To",
     "block": "Block",
+    "c2e": "Consensus → Auto-EVM",
+    "e2c": "Auto-EVM → Consensus",
+    "e2l": "EVM → Linked EVM (funding)",
+    "c2c": "Consensus → Consensus",
+    "arrived": "Arrived",
     "estimatedArrival": "Estimated EVM arrival: {0}",
     "challengeEnds": "Challenge period ends in: {0}",
     "markReceived": "Mark as received",
-    "statusValues": { "Success": "Success", "Failed": "Failed", "Pending": "Pending", "Unknown": "Unknown" }
+    "statusValues": {
+      "Success": "Success",
+      "Failed": "Failed",
+      "Pending": "Pending",
+      "Unknown": "Unknown",
+      "InBlock": "In block",
+      "Bridging": "Bridging",
+      "Arrived": "Arrived",
+      "Completed": "Received",
+      "Finalized": "Finalized"
+    }
   },
   "languageSwitcher": {
     "label": "Language"
