@@ -99,84 +99,85 @@ export const updateBalances = async () => {
 //   Consensus balance. Always leaves a log line, so "Refresh" visibly does
 //   something even when nothing changed.
 export const checkFinality = async () => {
-  const api = state.readOnlyConsensusApi || state.consensusApi;
-  if (!api) return;
   let changed = false;
 
-  const candidates = state.transactions.filter(tx =>
-    tx.status === 'in block' && tx.direction === 'consensusToEVM' && tx.blockNumber);
-  if (candidates.length > 0) {
-    try {
-      const finalizedHead = await api.rpc.chain.getFinalizedHead();
-      const { number } = await api.rpc.chain.getHeader(finalizedHead);
-      const finalizedHeight = number.toNumber();
-      for (const tx of candidates) {
-        if (tx.blockHash) {
-          const canonical = await api.rpc.chain.getBlockHash(tx.blockNumber);
-          if (canonical.toHex() !== tx.blockHash) {
-            addLog(`Transfer ${tx.hash?.slice(0, 10)}… block #${tx.blockNumber} is not canonical — status left unchanged`);
-            continue;
-          }
-        }
-        if (tx.blockNumber <= finalizedHeight) {
-          tx.status = 'finalized on consensus';
-          changed = true;
-          addLog(`Transfer ${tx.hash?.slice(0, 10)}… finalized on consensus (#${tx.blockNumber} ≤ finalized #${finalizedHeight})`);
-        }
-      }
-    } catch (error) {
-      addLog(`Finality check failed: ${error.message}`);
-    }
-  }
-
-  // C2E arrival: one linked-EVM balance read covers all in-flight C2E txs.
-  // This is what lets "Refresh" resolve a stuck "Bridging" entry on the
-  // spot, and it revives watches that died with an old tab.
+  // C2E arrival — a plain eth_getBalance against the public EVM RPC, so it
+  // works with NO wallet connected (fresh page load included). This is what
+  // lets "Refresh" — or just reloading — resolve stuck "Bridging" entries.
   const c2ePending = state.transactions.filter(tx =>
     tx.direction === 'consensusToEVM' && ['in block', 'bridging'].includes(tx.status));
-  if (c2ePending.length > 0 && state.substrateLinkedEvmAddress) {
-    await substrate.getLinkedEvmBalance(state.substrateLinkedEvmAddress);
-    const current = parseFloat(state.substrateLinkedEvmBalance);
-    if (!Number.isNaN(current)) {
-      for (const tx of c2ePending) {
-        if (tx.arrivalBaseline == null) continue; // pre-baseline tx: manual mark only
-        const target = tx.arrivalBaseline + parseFloat(tx.amount) * 0.98;
-        if (current >= target) {
-          clearWatch(tx);
-          tx.status = 'arrived';
-          changed = true;
-          addLog(`Funds arrived on Auto-EVM: ${current} AI3 (transfer ${tx.hash?.slice(0, 10)}…)`);
-          toast({
-            type: 'ok',
-            title: t('notifications.fundsArrived.title'),
-            message: t('notifications.fundsArrived.message', [current]),
-            duration: 0,
-          });
-        }
+  if (c2ePending.length > 0) {
+    const balances = new Map(); // destination → fresh balance (null = read failed)
+    for (const tx of c2ePending) {
+      const dest = c2eWatchAddress(tx);
+      if (!dest) continue;
+      if (!balances.has(dest)) balances.set(dest, await evm.fetchEvmBalanceRaw(dest));
+      const current = balances.get(dest);
+      if (current != null && c2eArrived(tx, current)) {
+        clearWatch(tx);
+        tx.status = 'arrived';
+        changed = true;
+        addLog(`Funds arrived on Auto-EVM: ${current.toFixed(4)} AI3 at ${dest.slice(0, 6)}…${dest.slice(-4)} (transfer ${tx.hash?.slice(0, 10)}…)`);
+        toast({
+          type: 'ok',
+          title: t('notifications.fundsArrived.title'),
+          message: t('notifications.fundsArrived.message', [current.toFixed(4)]),
+          duration: 0,
+        });
       }
     }
-    // Re-arm watches that quit under the old give-up-at-horizon rule — the
-    // watch now keeps polling past the horizon instead of abandoning.
+    // Re-arm watches that quit under the old give-up-at-horizon rule.
     for (const tx of c2ePending) {
       if (!['in block', 'bridging'].includes(tx.status)) continue; // arrived above
-      if (!arrivalTimers.has(tx.id)) {
-        startArrivalWatch(tx, parseFloat(tx.amount), { quiet: true });
+      if (c2eWatchAddress(tx) && !arrivalTimers.has(tx.id)) {
+        startArrivalWatch(tx, { quiet: true });
       }
     }
   }
 
-  const e2cPending = state.transactions.filter(tx =>
-    tx.direction === 'evmToConsensus' && tx.status === 'bridging' && tx.arrivalBaseline != null);
-  if (e2cPending.length > 0) {
-    await substrate.updateBalance(); // one fresh read covers all pending E2C txs
-    const current = parseFloat(state.consensusBalance);
-    if (!Number.isNaN(current)) {
-      for (const tx of e2cPending) {
-        if (confirmE2cArrival(tx, current)) changed = true;
+  // Everything below reads the consensus chain — needs an API (wallet
+  // connect or auto-reconnect).
+  const api = state.readOnlyConsensusApi || state.consensusApi;
+  if (api) {
+    const candidates = state.transactions.filter(tx =>
+      tx.status === 'in block' && tx.direction === 'consensusToEVM' && tx.blockNumber);
+    if (candidates.length > 0) {
+      try {
+        const finalizedHead = await api.rpc.chain.getFinalizedHead();
+        const { number } = await api.rpc.chain.getHeader(finalizedHead);
+        const finalizedHeight = number.toNumber();
+        for (const tx of candidates) {
+          if (tx.blockHash) {
+            const canonical = await api.rpc.chain.getBlockHash(tx.blockNumber);
+            if (canonical.toHex() !== tx.blockHash) {
+              addLog(`Transfer ${tx.hash?.slice(0, 10)}… block #${tx.blockNumber} is not canonical — status left unchanged`);
+              continue;
+            }
+          }
+          if (tx.blockNumber <= finalizedHeight) {
+            tx.status = 'finalized on consensus';
+            changed = true;
+            addLog(`Transfer ${tx.hash?.slice(0, 10)}… finalized on consensus (#${tx.blockNumber} ≤ finalized #${finalizedHeight})`);
+          }
+        }
+      } catch (error) {
+        addLog(`Finality check failed: ${error.message}`);
       }
     }
+
+    const e2cPending = state.transactions.filter(tx =>
+      tx.direction === 'evmToConsensus' && tx.status === 'bridging' && tx.arrivalBaseline != null);
+    if (e2cPending.length > 0) {
+      await substrate.updateBalance(); // one fresh read covers all pending E2C txs
+      const current = parseFloat(state.consensusBalance);
+      if (!Number.isNaN(current)) {
+        for (const tx of e2cPending) {
+          if (confirmE2cArrival(tx, current)) changed = true;
+        }
+      }
+    }
+    armE2cWatches();
   }
-  armE2cWatches();
 
   if (changed) commit();
   const tracked = state.transactions.filter(tx =>
@@ -270,38 +271,49 @@ const stopInclusionWatch = () => {
   }
 };
 
-const startArrivalWatch = (pendingTx, amountNum, { quiet = false } = {}) => {
+// Arrival test for a C2E transfer against the DESTINATION balance. With a
+// baseline (recorded fresh at submit) the balance must have RISEN by the
+// amount; without one (older transfers) holding at least the transferred
+// amount counts. XDM takes ~0.01% fee (1 AI3 → 0.9999) — tolerated here.
+const c2eArrived = (tx, destBalance) => {
+  const need = parseFloat(tx.amount) * 0.98;
+  if (tx.arrivalBaseline != null) return destBalance >= tx.arrivalBaseline + need;
+  return destBalance >= need;
+};
+
+// The address a transfer's arrival is watched on: the recorded destination
+// when present (new transfers), else the best guess for legacy records.
+const c2eWatchAddress = (tx) =>
+  tx.destination || state.substrateLinkedEvmAddress || state.evmAddress || null;
+
+const startArrivalWatch = (pendingTx, { quiet = false } = {}) => {
   stopArrivalWatch(pendingTx);
-  // Baseline and start time are persisted with the tx so a resumed watch
-  // compares against the ORIGINAL pre-transfer balance and keeps the
-  // original 30 min horizon (funds that landed while the tab was closed
-  // are detected as arrived on the first tick).
-  if (pendingTx.arrivalBaseline == null) {
-    pendingTx.arrivalBaseline = parseFloat(state.substrateLinkedEvmBalance) || 0;
-  }
+  // Start time is persisted with the tx so a resumed watch keeps the
+  // original horizon (funds that landed while the tab was closed are
+  // detected on the first tick).
   if (pendingTx.arrivalWatchStart == null) {
     pendingTx.arrivalWatchStart = Date.now();
   }
-  const baseline = pendingTx.arrivalBaseline;
   const startedAt = pendingTx.arrivalWatchStart;
-  // XDM takes ~0.01% fee (1 AI3 → 0.9999); tolerate it in the comparison
-  const target = baseline + amountNum * 0.98;
-  addLog(`Watching linked EVM balance for arrival (baseline ${baseline} AI3, horizon 30 min)`);
+  const dest = c2eWatchAddress(pendingTx);
+  if (!dest) {
+    addLog(`No destination recorded for ${pendingTx.hash ? `${pendingTx.hash.slice(0, 10)}… ` : ''}— arrival cannot be auto-detected; use the history entry to mark it received.`);
+    return;
+  }
+  addLog(`Watching ${dest.slice(0, 6)}…${dest.slice(-4)} for arrival (30s → 1min → 5min past ETA)`);
 
   const tick = async () => {
     arrivalTimers.delete(pendingTx.id);
-    if (state.substrateLinkedEvmAddress) {
-      await substrate.getLinkedEvmBalance(state.substrateLinkedEvmAddress);
-    }
-    const current = parseFloat(state.substrateLinkedEvmBalance) || 0;
-    if (current >= target) {
+    if (!['pending', 'in block', 'bridging'].includes(pendingTx.status)) return;
+    const current = await evm.fetchEvmBalanceRaw(dest);
+    if (current != null && c2eArrived(pendingTx, current)) {
       pendingTx.status = 'arrived';
       commit();
-      addLog(`Funds arrived on Auto-EVM: ${current} AI3`);
+      addLog(`Funds arrived on Auto-EVM: ${current.toFixed(4)} AI3 at the destination`);
       toast({
         type: 'ok',
         title: t('notifications.fundsArrived.title'),
-        message: t('notifications.fundsArrived.message', [current]),
+        message: t('notifications.fundsArrived.message', [current.toFixed(4)]),
         duration: 0,
       });
       stopArrivalWatch(pendingTx);
@@ -432,7 +444,7 @@ const startInclusionWatch = (initialHash, pendingTx, fromHeight = null) => {
           state.isTransferring = false;
           state.currentStatus = '';
           commit();
-          startArrivalWatch(pendingTx, parseFloat(pendingTx.amount));
+          startArrivalWatch(pendingTx);
           return;
         }
       }
@@ -517,7 +529,7 @@ const handleTransferStatus = async ({ status }) => {
     commit();
     // Bridging starts at inclusion, not finality — start watching now
     if (pendingTx) {
-      startArrivalWatch(pendingTx, parseFloat(pendingTx.amount));
+      startArrivalWatch(pendingTx);
     }
   }
   if (status.isFinalized) {
@@ -654,6 +666,14 @@ export const performTransfer = async () => {
       state.isTransferring = true;
       state.currentStatus = 'pending';
       currentPendingHash = null; // Reset
+      // Arrival detection is scoped to the actual destination and compares
+      // against a FRESH pre-transfer balance — the state field can be a
+      // stale localStorage carry-over from a previous session.
+      newTx.destination = state.evmAddress;
+      try {
+        const fresh = await evm.fetchEvmBalanceRaw(state.evmAddress);
+        if (fresh != null) newTx.arrivalBaseline = fresh;
+      } catch { /* no baseline → relaxed arrival rule (≥ amount) */ }
       commit();
 
       // Record the submit height so a reloaded app can resume the inclusion
@@ -698,6 +718,7 @@ export const performTransfer = async () => {
       // Destination's pre-transfer balance: the baseline the E2C arrival
       // watch compares against during the challenge period. If the balance
       // was never loaded, no baseline — the manual mark button covers it.
+      newTx.destination = state.consensusAddress;
       if (state.consensusBalance != null) {
         newTx.arrivalBaseline = parseFloat(state.consensusBalance) || 0;
       }
@@ -774,7 +795,7 @@ const resumeTracking = () => {
       // Arrival polling is a plain eth_getBalance against the public EVM
       // RPC — works without any connected wallet.
       addLog(`Resuming arrival watch for transfer ${tx.hash ? tx.hash.slice(0, 10) + '…' : tx.id}`);
-      startArrivalWatch(tx, parseFloat(tx.amount), { quiet: true });
+      startArrivalWatch(tx, { quiet: true });
     } else if (tx.direction === 'evmToConsensus' && tx.status === 'bridging') {
       // ~24h challenge period. Arrival is auto-detected by polling the
       // destination Consensus balance — the watch is armed by checkFinality

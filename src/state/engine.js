@@ -14,7 +14,7 @@ let logCounter = 0;
 // follows the chain (inclusion watch + arrival polling), not Subscan.
 const TX_STORE_KEY = 'xdmLocalTxs';
 const TX_PERSIST_FIELDS = [
-  'id', 'hash', 'direction', 'amount', 'status', 'estimatedTime',
+  'id', 'hash', 'direction', 'amount', 'destination', 'status', 'estimatedTime',
   'expectedArrival', 'timestamp', 'blockNumber', 'blockHash',
   'submitBlock', 'arrivalBaseline', 'arrivalWatchStart',
 ];

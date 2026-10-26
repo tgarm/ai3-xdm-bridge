@@ -43,6 +43,26 @@ export const updateBalance = async () => {
   }
 };
 
+// One raw eth_getBalance against the public EVM RPC — returns a number in
+// AI3, or null on any failure. Arrival detection uses this so it is scoped
+// to the actual destination address and works with no wallet connected.
+export const fetchEvmBalanceRaw = async (address) => {
+  if (!address) return null;
+  try {
+    const response = await fetch(EVM_RPC_HTTPS, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_getBalance', params: [address, 'latest'] }),
+    });
+    if (!response.ok) return null;
+    const msg = await response.json();
+    if (msg.error || msg.result == null) return null;
+    return Number(BigInt(msg.result)) / Number(10n ** DECIMALS);
+  } catch {
+    return null;
+  }
+};
+
 // Helper to ensure correct network is selected
 export const ensureCorrectNetwork = async () => {
   if (!window.ethereum) return false;
