@@ -1,4 +1,4 @@
-/* ai3-xdm-bridge — shared UI system (doc/07-ui-style-guide.md, my-drive repo).
+/* ai3-xdm-bridge — shared UI system.
    Dual theme via CSS variables: dark is the default, light via
    html[data-theme='light']. Apps only ever reference the variables. */
 

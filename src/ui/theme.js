@@ -1,6 +1,6 @@
 // src/ui/theme.js
 //
-// Dual theme (doc/07): dark is the default, light via html[data-theme='light'].
+// Dual theme: dark is the default, light via html[data-theme='light'].
 // Explicit choice persists in localStorage; otherwise follows the system.
 // index.html sets data-theme inline before first paint to avoid a flash.
 

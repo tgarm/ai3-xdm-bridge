@@ -1,6 +1,6 @@
 // src/components/TransferPanel.jsx
 //
-// The core action card. UX rules (doc/07): the transfer button is never
+// The core action card. UX rule: the transfer button is never
 // silently disabled — when inactive, a hint line states exactly why. An
 // unread balance shows '—' (never a fake 0).
 

@@ -197,7 +197,7 @@ export const updateBalance = async () => {
 // Perform Consensus to EVM transfer.
 // Bare extrinsic construction — the params are plain JS objects and are
 // encoded against the chain metadata (no SDK wrapper, no custom types).
-// Verified against mainnet (PermaDrive P2, tx 0x0758bae7…).
+// Verified against mainnet (tx 0x0758bae7…, 2026-10-26).
 export const performConsensusTransfer = async (evmAddress, amountWei, onStatusUpdate) => {
     if (!state.consensusApi) {
         throw new Error('Consensus API not initialized');
