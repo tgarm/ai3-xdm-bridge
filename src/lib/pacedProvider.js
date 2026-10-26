@@ -67,23 +67,28 @@ export const PacedHttpProvider = pacedProvider(HttpProvider);
 
 // Warm-up probe: if the host currently rate-limits or bans us, fail fast here
 // (with generous retries) instead of letting ApiPromise.create fire its init
-// burst into the void. The WS variant is not guaranteed to be connected when
-// this runs — WsProvider.connect() may resolve before the socket is open, so
-// wait for the 'connected' event explicitly.
+// burst into the void.
+//
+// WsProvider auto-connects on construction (with its own retry loop); the
+// socket just may not be open yet when the probe fires. Wait for the
+// 'connected' event instead of calling connect() — a second connect()
+// spawns a rival socket and the two kill each other (1006). Some provider
+// versions lack .once/.off, so subscribe with .on and detach via a flag.
 export async function probeProvider(provider, { method = 'system_chain', maxRetries = 8 } = {}) {
-  if (typeof provider.connect === 'function' && !provider.isConnected) {
-    try {
-      await provider.connect();
-    } catch { /* connect() errors surface through the probe retries below */ }
-    if (!provider.isConnected) {
-      await new Promise((resolve, reject) => {
-        const timeout = setTimeout(() => reject(new Error('WebSocket connect timeout (15s)')), 15000);
-        provider.once('connected', () => {
-          clearTimeout(timeout);
-          resolve();
-        });
-      });
-    }
+  const isUp = typeof provider.isConnected === 'function' && provider.isConnected();
+  if (!isUp && typeof provider.on === 'function') {
+    await new Promise((resolve) => {
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        if (typeof provider.off === 'function') provider.off('connected', finish);
+        resolve();
+      };
+      const timeout = setTimeout(finish, 15000);
+      provider.on('connected', finish);
+    });
   }
   let delay = 5000;
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
