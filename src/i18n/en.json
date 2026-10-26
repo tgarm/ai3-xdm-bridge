@@ -75,6 +75,10 @@
     "evmConnectFailed": {
       "title": "EVM wallet connection failed",
       "message": "Could not connect to the wallet: {0}"
+    },
+    "txCancelled": {
+      "title": "Transaction cancelled",
+      "message": "You declined the signature request in your wallet. Nothing was sent."
     }
   },
   "wallet": {

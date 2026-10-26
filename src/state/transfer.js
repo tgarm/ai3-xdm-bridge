@@ -585,11 +585,16 @@ export const performTransfer = async () => {
     }
     addLog(`Transfer failed: ${error.message}`);
     console.error('Transfer failed:', error);
+    // Distinguish "user said no in the wallet" (common, not an error worth
+    // a red toast) from genuine failures.
+    const cancelled = error?.code === 'ACTION_REJECTED' || /denied|rejected/i.test(error?.message || '');
     toast({
-      type: 'danger',
-      title: t('notifications.transferInitFailed.title'),
-      message: `${error.message}. ${t('notifications.transferInitFailed.hint')}`,
-      duration: 0,
+      type: cancelled ? 'info' : 'danger',
+      title: t(cancelled ? 'notifications.txCancelled.title' : 'notifications.transferInitFailed.title'),
+      message: cancelled
+        ? t('notifications.txCancelled.message')
+        : `${error.message}. ${t('notifications.transferInitFailed.hint')}`,
+      duration: cancelled ? 4000 : 0,
     });
   }
 };

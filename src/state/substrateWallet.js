@@ -151,12 +151,13 @@ export const performE2CTransfer = async (src, consensusDestAddress, amountWei, o
         addLog('Auto-XDM precompile helper imported.');
 
         let signer;
+        let provider;
         if (src.kind === 'linked') {
             if (!state.linkedEvmProvider) {
                 throw new Error('Linked EVM provider not available.');
             }
-            const browserProvider = new BrowserProvider(state.linkedEvmProvider);
-            signer = await browserProvider.getSigner(src.from);
+            provider = new BrowserProvider(state.linkedEvmProvider);
+            signer = await provider.getSigner(src.from);
         } else {
             if (!state.evmProvider) {
                 throw new Error('EVM wallet not connected.');
@@ -164,11 +165,33 @@ export const performE2CTransfer = async (src, consensusDestAddress, amountWei, o
             // The precompile lives on Auto-EVM — make sure the injected
             // wallet is on chain 870 (adds/switches the network if needed).
             await ensureCorrectNetwork();
-            signer = await state.evmProvider.getSigner(src.from);
+            provider = state.evmProvider;
+            signer = await provider.getSigner(src.from);
+        }
+
+        // Field-tested 2026-10-26: the wallet's own fee estimate can land
+        // below Auto-EVM's moving base fee and the RPC rejects the raw tx
+        // ("gas price less than block base fee") AFTER signing. Read the
+        // chain fees here and pin EIP-1559 fields with generous headroom —
+        // the wallet confirm screen then shows these values as-is.
+        let feeOptions = {};
+        try {
+            const fee = await provider.getFeeData();
+            if (fee.maxFeePerGas != null) {
+                feeOptions.maxFeePerGas = (fee.maxFeePerGas * 3n) / 2n;
+                if (fee.maxPriorityFeePerGas != null) {
+                    feeOptions.maxPriorityFeePerGas = fee.maxPriorityFeePerGas;
+                }
+            } else if (fee.gasPrice != null) {
+                feeOptions.gasPrice = (fee.gasPrice * 3n) / 2n;
+            }
+            addLog(`E2C fees: ${JSON.stringify(Object.fromEntries(Object.entries(feeOptions).map(([k, v]) => [k, v.toString()])))}`);
+        } catch (feeError) {
+            addLog(`Fee data unavailable, using wallet estimate: ${feeError.message}`);
         }
 
         addLog('Sending precompile transaction... (check wallet for signature prompt)');
-        const result = await transferToConsensus(signer, consensusDestAddress, amountWei, { confirmations: 1 });
+        const result = await transferToConsensus(signer, consensusDestAddress, amountWei, { confirmations: 1, ...feeOptions });
 
         if (!result.success) {
             throw new Error('Precompile transaction reverted');

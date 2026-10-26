@@ -75,6 +75,10 @@
     "evmConnectFailed": {
       "title": "Verbindung der EVM-Wallet fehlgeschlagen",
       "message": "Verbindung zur Wallet nicht möglich: {0}"
+    },
+    "txCancelled": {
+      "title": "Transaktion abgebrochen",
+      "message": "Sie haben die Signaturanfrage in Ihrer Wallet abgelehnt. Es wurde nichts gesendet."
     }
   },
   "wallet": {

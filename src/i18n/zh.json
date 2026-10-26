@@ -75,6 +75,10 @@
     "evmConnectFailed": {
       "title": "EVM 钱包连接失败",
       "message": "无法连接钱包：{0}"
+    },
+    "txCancelled": {
+      "title": "交易已取消",
+      "message": "你在钱包中拒绝了签名请求，未发送任何资金。"
     }
   },
   "wallet": {

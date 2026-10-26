@@ -75,6 +75,10 @@
     "evmConnectFailed": {
       "title": "Error al conectar la cartera EVM",
       "message": "No se pudo conectar a la cartera: {0}"
+    },
+    "txCancelled": {
+      "title": "Transacción cancelada",
+      "message": "Rechzó la solicitud de firma en su cartera. No se envió nada."
     }
   },
   "wallet": {
