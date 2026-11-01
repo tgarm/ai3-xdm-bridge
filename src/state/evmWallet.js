@@ -1,11 +1,14 @@
 // src/state/evmWallet.js
 //
-// Port of useEvmWallet (Vue) to the plain singleton store. Logic unchanged:
-// network switch/add flow, localStorage persistence, plain EVM transfer for
-// the "prepare funds" step of E2C.
+// Port of useEvmWallet (Vue) to the plain singleton store: localStorage
+// persistence, plain EVM transfer for the "prepare funds" step of E2C.
+// The network switch/add flow follows the PermaDrive injected-wallet
+// pattern: authorize accounts first, then switch, and recognize the
+// "chain missing" error in every shape wallets report it.
 
 import { ethers } from 'ethers';
 import { DECIMALS, EVM_CHAIN_ID, EVM_CHAIN_NAME, EVM_NATIVE_CURRENCY, EVM_RPC_HTTPS, EVM_EXPLORER_URLS } from '@/constants';
+import { isChainMissingSwitchError, isUserRejectedError } from '@/lib/evmErrors';
 import { state, commit, addLog } from './engine';
 import { toast } from '@/ui/dialogs';
 import { t } from '@/i18n';
@@ -63,50 +66,85 @@ export const fetchEvmBalanceRaw = async (address) => {
   }
 };
 
-// Helper to ensure correct network is selected
+// Helper to ensure correct network is selected. Order matters: the site
+// must be authorized (eth_requestAccounts) before wallet_switch/add — some
+// wallets refuse those pre-authorization — and "chain missing" must be
+// detected in every shape wallets report it: 4902 at the top level (classic
+// MetaMask) or wrapped as -32603 with the real code in
+// data.originalError.code (newer / substitute wallets).
 export const ensureCorrectNetwork = async () => {
   if (!window.ethereum) return false;
 
-  try {
-    const currentChainId = await window.ethereum.request({ method: 'eth_chainId' });
-    const expectedChainIdHex = '0x' + EVM_CHAIN_ID.toString(16);
+  const expectedChainIdHex = '0x' + EVM_CHAIN_ID.toString(16);
 
-    if (currentChainId === expectedChainIdHex) {
-      addLog(`Correct EVM network detected (Chain ID: ${EVM_CHAIN_ID})`);
-      return true;
+  let currentChainId;
+  try {
+    currentChainId = await window.ethereum.request({ method: 'eth_chainId' });
+  } catch (error) {
+    addLog(`Failed to read the current EVM network: ${error.message}`);
+    throw new Error(`Failed to read the current EVM network: ${error.message}`);
+  }
+
+  if (currentChainId === expectedChainIdHex) {
+    addLog(`Correct EVM network detected (Chain ID: ${EVM_CHAIN_ID})`);
+    return true;
+  }
+
+  addLog(`Incorrect network detected. Attempting to switch to ${EVM_CHAIN_NAME}...`);
+  try {
+    await window.ethereum.request({
+      method: 'wallet_switchEthereumChain',
+      params: [{ chainId: expectedChainIdHex }],
+    });
+    addLog(`Successfully switched to ${EVM_CHAIN_NAME}.`);
+    return true;
+  } catch (switchError) {
+    // A deliberate "no" in the wallet — surface it as-is, never fire the
+    // add-chain dialog on top of it.
+    if (isUserRejectedError(switchError)) {
+      addLog('Network switch rejected in the wallet.');
+      throw switchError;
     }
 
-    addLog(`Incorrect network detected. Attempting to switch to ${EVM_CHAIN_NAME}...`);
+    if (!isChainMissingSwitchError(switchError)) {
+      addLog(`Network switch failed: ${switchError.message}`);
+      console.error('Network switch failed:', switchError);
+      throw new Error(`Failed to switch to the ${EVM_CHAIN_NAME} network: ${switchError.message}`);
+    }
+
+    addLog(`${EVM_CHAIN_NAME} not found in wallet. Attempting to add it...`);
     try {
       await window.ethereum.request({
-        method: 'wallet_switchEthereumChain',
-        params: [{ chainId: expectedChainIdHex }],
+        method: 'wallet_addEthereumChain',
+        params: [{
+          chainId: expectedChainIdHex,
+          chainName: EVM_CHAIN_NAME,
+          nativeCurrency: EVM_NATIVE_CURRENCY,
+          rpcUrls: [EVM_RPC_HTTPS], // Use the dedicated HTTPS RPC URL
+          blockExplorerUrls: EVM_EXPLORER_URLS,
+        }],
       });
-      addLog(`Successfully switched to ${EVM_CHAIN_NAME}.`);
-      return true;
-    } catch (switchError) {
-      // This error code indicates that the chain has not been added to MetaMask.
-      if (switchError.code === 4902) {
-        addLog(`${EVM_CHAIN_NAME} not found in wallet. Attempting to add it...`);
+      // EIP-3085 says the wallet should switch to the chain it just added,
+      // but a few wallets only add it — switch explicitly if needed.
+      const afterAdd = await window.ethereum.request({ method: 'eth_chainId' });
+      if (afterAdd !== expectedChainIdHex) {
         await window.ethereum.request({
-          method: 'wallet_addEthereumChain',
-          params: [{
-            chainId: expectedChainIdHex,
-            chainName: EVM_CHAIN_NAME,
-            nativeCurrency: EVM_NATIVE_CURRENCY,
-            rpcUrls: [EVM_RPC_HTTPS], // Use the dedicated HTTPS RPC URL
-            blockExplorerUrls: EVM_EXPLORER_URLS,
-          }],
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: expectedChainIdHex }],
         });
-        addLog(`Successfully added and switched to ${EVM_CHAIN_NAME}.`);
-        return true;
       }
-      throw switchError; // Rethrow other errors
+      addLog(`Successfully added and switched to ${EVM_CHAIN_NAME}.`);
+      return true;
+    } catch (addError) {
+      if (isUserRejectedError(addError)) {
+        // Rejection of the add dialog is a plain "no" as well.
+        addLog('Adding the network was rejected in the wallet.');
+      } else {
+        addLog(`Adding the network failed: ${addError.message}`);
+        console.error('Adding the network failed:', addError);
+      }
+      throw addError;
     }
-  } catch (error) {
-    addLog(`Network setup failed: ${error.message}`);
-    console.error('Network setup failed:', error);
-    throw new Error(`Failed to switch to or add the ${EVM_CHAIN_NAME} network.`);
   }
 };
 
@@ -125,11 +163,12 @@ export const connect = async () => {
 
   try {
     addLog('Attempting to connect EVM wallet...');
-    // First, ensure the correct network is active or added
+    // Authorize the site first: some wallets refuse wallet_switch/add
+    // before eth_requestAccounts has been granted.
+    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+    // Then make sure the Auto-EVM network is active (switched or added).
     await ensureCorrectNetwork();
 
-    // Then, request accounts
-    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
     if (accounts.length > 0) {
       state.evmAddress = accounts[0];
       localStorage.setItem('evmAddress', state.evmAddress);
