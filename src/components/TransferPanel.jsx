@@ -93,7 +93,8 @@ export function TransferPanel() {
       )}
 
       <div className="kv">
-        <span>{t('transfer.available')}</span>
+        {/* Source-chain balance: tinted by the chain the money currently sits on */}
+        <span className={isC2E ? 'txt-consensus' : 'txt-evm'}>{t('transfer.available')}</span>
         <span className="mono balance-value">
           {s.isTransferring ? '…' : srcBal == null ? '—' : `${srcBal.toFixed(4)} AI3`}
         </span>

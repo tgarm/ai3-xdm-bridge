@@ -1,6 +1,10 @@
 /* ai3-xdm-bridge — shared UI system.
    Dual theme via CSS variables: dark is the default, light via
-   html[data-theme='light']. Apps only ever reference the variables. */
+   html[data-theme='light']. Apps only ever reference the variables.
+   The token block below is kept identical (names + values) across the
+   family stylesheets: ai3.land, PermaDrive (frontend/src/styles.css),
+   ai3-xdm-bridge (src/styles.css). App-specific extras (--shadow,
+   --overlay) follow after it. */
 
 :root {
   --bg: #0e1116;
@@ -13,6 +17,10 @@
   --ok: #3fb950;
   --warn: #d29922;
   --danger: #f85149;
+  /* Chain identity colors: consensus chain = teal (storage side),
+     EVM domain = purple (payments/gas side). */
+  --chain-consensus: #2dd4bf;
+  --chain-evm: #a78bfa;
   --shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
   --overlay: rgba(0, 0, 0, 0.55);
   color-scheme: dark;
@@ -30,6 +38,8 @@
   --ok: #1a7f37;
   --warn: #9a6700;
   --danger: #cf222e;
+  --chain-consensus: #0f766e;
+  --chain-evm: #6d28d9;
   --shadow: 0 4px 16px rgba(31, 35, 40, 0.12);
   --overlay: rgba(31, 35, 40, 0.45);
   color-scheme: light;
@@ -210,6 +220,54 @@ body {
 
 .badge.info::before {
   background: var(--accent);
+}
+
+/* ---- chain identity tags ----
+   Consensus chain = teal, EVM domain = purple. Any UI that shows a
+   wallet/balance/fee belonging to one specific chain carries the matching
+   tag or text color nearby, so users learn passively which chain their
+   money is on. Same component as PermaDrive's ChainTag. */
+
+.chain-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 17px;
+  border: 1px solid transparent;
+  vertical-align: 1px;
+  white-space: nowrap;
+}
+
+.chain-tag::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+
+.chain-tag.consensus {
+  color: var(--chain-consensus);
+  border-color: color-mix(in srgb, var(--chain-consensus) 35%, transparent);
+  background: color-mix(in srgb, var(--chain-consensus) 12%, transparent);
+}
+
+.chain-tag.evm {
+  color: var(--chain-evm);
+  border-color: color-mix(in srgb, var(--chain-evm) 35%, transparent);
+  background: color-mix(in srgb, var(--chain-evm) 12%, transparent);
+}
+
+.txt-consensus {
+  color: var(--chain-consensus);
+}
+
+.txt-evm {
+  color: var(--chain-evm);
 }
 
 .notice {

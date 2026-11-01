@@ -3,6 +3,10 @@
 // Both wallet cards (Consensus / Auto-EVM) share one layout: connect button
 // → address (click to copy) → balances. Kept as two subcomponents because
 // the Consensus side carries the account selector and the linked EVM row.
+//
+// Chain identity colors (shared family rule): consensus = teal, EVM =
+// purple. Card titles and the EVM-side rows inside the consensus card are
+// tinted accordingly so users learn passively which chain holds the money.
 
 import { useState } from 'react';
 import { useEngine } from '@/state/engine';
@@ -103,7 +107,7 @@ function ConsensusWallet() {
   return (
     <div className="card">
       <div className="card-head">
-        <h2>{t('wallet.consensusChain')}</h2>
+        <h2 className="txt-consensus">{t('wallet.consensusChain')}</h2>
         <span className={`badge ${connected ? 'ok' : ''}`}>{connected ? t('wallet.connected') : t('wallet.disconnected')}</span>
       </div>
 
@@ -140,7 +144,7 @@ function ConsensusWallet() {
           {s.substrateLinkedEvmAddress && (
             <>
               <div className="kv">
-                <span>{t('wallet.linkedEvmAddress')}</span>
+                <span className="txt-evm">{t('wallet.linkedEvmAddress')}</span>
                 <span
                   className="mono"
                   title={t('wallet.copyAddressTooltip')}
@@ -151,7 +155,7 @@ function ConsensusWallet() {
                 </span>
               </div>
               <div className="kv">
-                <span>{t('wallet.evmChain')}</span>
+                <span className="txt-evm">{t('wallet.evmChain')}</span>
                 <Balance value={s.substrateLinkedEvmBalance} loading={s.substrateLinkedEvmBalanceLoading} />
               </div>
             </>
@@ -202,7 +206,7 @@ function EvmWallet() {
   return (
     <div className="card">
       <div className="card-head">
-        <h2>{t('wallet.evmChain')}</h2>
+        <h2 className="txt-evm">{t('wallet.evmChain')}</h2>
         <span className={`badge ${connected ? 'ok' : ''}`}>{connected ? t('wallet.connected') : t('wallet.disconnected')}</span>
       </div>
 
