@@ -30,23 +30,30 @@ export const initProvider = () => {
   }
 };
 
-// Update EVM balance
-export const updateBalance = async () => {
+// Update EVM balance. quiet: no loading flag, no success log, no commit
+// when nothing changed — used by the background balance poll.
+export const updateBalance = async ({ quiet = false } = {}) => {
   if (state.evmProvider && state.evmAddress) {
-    state.evmBalanceLoading = true;
-    commit();
+    if (!quiet) {
+      state.evmBalanceLoading = true;
+      commit();
+    }
     try {
       const balanceWei = await state.evmProvider.getBalance(state.evmAddress);
       const balanceEther = ethers.formatUnits(balanceWei, DECIMALS);
-      state.evmBalance = parseFloat(balanceEther).toFixed(4);
+      const next = parseFloat(balanceEther).toFixed(4);
+      if (quiet && next === state.evmBalance) return;
+      state.evmBalance = next;
       commit();
-      addLog(`EVM balance updated: ${state.evmBalance} AI3`);
+      if (!quiet) addLog(`EVM balance updated: ${state.evmBalance} AI3`);
     } catch (error) {
       addLog(`Error updating EVM balance: ${error.message}`);
       console.error('EVM balance update failed:', error);
     } finally {
-      state.evmBalanceLoading = false;
-      commit();
+      if (!quiet) {
+        state.evmBalanceLoading = false;
+        commit();
+      }
     }
   }
 };

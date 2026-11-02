@@ -176,22 +176,30 @@ export const initReadOnlyApi = async () => {
     }
 };
 
-// Update balance
-export const updateBalance = async () => {
+// Update balance. quiet: no loading flag, no success log, no commit when
+// nothing changed — the background balance poll uses it (a 30 s '…' flash
+// and log spam would defeat the point of a silent refresh).
+export const updateBalance = async ({ quiet = false } = {}) => {
     const apiToUse = state.readOnlyConsensusApi || state.consensusApi;
     if (apiToUse && state.consensusAddress) {
-        state.consensusBalanceLoading = true;
-        commit();
+        if (!quiet) {
+            state.consensusBalanceLoading = true;
+            commit();
+        }
         try {
             const { data: { free } } = await apiToUse.query.system.account(state.consensusAddress);
-            state.consensusBalance = (Number(free) / Number(10n ** DECIMALS)).toFixed(4);
+            const next = (Number(free) / Number(10n ** DECIMALS)).toFixed(4);
+            if (quiet && next === state.consensusBalance) return;
+            state.consensusBalance = next;
             commit();
-            addLog(`Consensus balance updated: ${state.consensusBalance} AI3`);
+            if (!quiet) addLog(`Consensus balance updated: ${state.consensusBalance} AI3`);
         } catch (error) {
             addLog(`Error updating consensus balance: ${error.message}`);
         } finally {
-            state.consensusBalanceLoading = false;
-            commit();
+            if (!quiet) {
+                state.consensusBalanceLoading = false;
+                commit();
+            }
         }
     }
 };
@@ -308,11 +316,15 @@ export const performE2CTransfer = async (src, consensusDestAddress, amountWei, o
 };
 
 // Linked EVM balance via a single raw eth_getBalance call — no ethers
-// provider stack needed for a read-only balance.
-export const getLinkedEvmBalance = async (evmAddress) => {
+// provider stack needed for a read-only balance. quiet: see updateBalance;
+// additionally a failed quiet read keeps the displayed value (a flaky poll
+// must not blank the card), while a manual refresh still reports '—'.
+export const getLinkedEvmBalance = async (evmAddress, { quiet = false } = {}) => {
     if (!evmAddress) return;
-    state.substrateLinkedEvmBalanceLoading = true;
-    commit();
+    if (!quiet) {
+        state.substrateLinkedEvmBalanceLoading = true;
+        commit();
+    }
     try {
         const response = await fetch(EVM_RPC_HTTPS, {
             method: 'POST',
@@ -327,17 +339,20 @@ export const getLinkedEvmBalance = async (evmAddress) => {
             throw new Error(msg.error.message ?? 'eth_getBalance error');
         }
         const balanceWei = BigInt(msg.result);
-        state.substrateLinkedEvmBalance = (Number(balanceWei) / Number(10n ** DECIMALS)).toFixed(4);
+        const next = (Number(balanceWei) / Number(10n ** DECIMALS)).toFixed(4);
+        if (quiet && next === state.substrateLinkedEvmBalance) return;
+        state.substrateLinkedEvmBalance = next;
         commit();
-        addLog(`Linked EVM balance updated: ${state.substrateLinkedEvmBalance} AI3`);
+        if (!quiet) addLog(`Linked EVM balance updated: ${state.substrateLinkedEvmBalance} AI3`);
     } catch (error) {
+        if (!quiet) state.substrateLinkedEvmBalance = null; // Unknown on error — UI shows '—'
         addLog(`Error updating linked EVM balance: ${error.message}`);
         console.error('Linked EVM balance update failed:', error);
-        state.substrateLinkedEvmBalance = null; // Unknown on error — UI shows '—'
-        commit();
     } finally {
-        state.substrateLinkedEvmBalanceLoading = false;
-        commit();
+        if (!quiet) {
+            state.substrateLinkedEvmBalanceLoading = false;
+            commit();
+        }
     }
 };
 

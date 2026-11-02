@@ -90,6 +90,41 @@ export const updateBalances = async () => {
   }
 };
 
+// ---- background balance poll --------------------------------------------
+// Money moves outside this app too: an XDM delivery landing on the EVM
+// account, a manual send from SubWallet. Poll quietly (no loading flags,
+// no log lines, no commit when nothing changed) so the wallet cards stay
+// truthful without the user pressing Refresh. Visible tab only, and never
+// while a transfer is in flight — the transfer paths refresh what they
+// touched themselves (post-broadcast refresh, arrival balance).
+const BALANCE_POLL_MS = 30 * 1000;
+let balanceTimer = null;
+
+const refreshBalancesQuietly = async () => {
+  if (document.visibilityState !== 'visible') return;
+  if (state.isTransferring) return;
+  if (!state.consensusAddress && !state.evmAddress) return;
+  await Promise.all([
+    substrate.updateBalance({ quiet: true }),
+    evm.updateBalance({ quiet: true }),
+    state.substrateLinkedEvmAddress
+      ? substrate.getLinkedEvmBalance(state.substrateLinkedEvmAddress, { quiet: true })
+      : Promise.resolve(),
+  ]);
+};
+
+const startBalancePolling = () => {
+  if (balanceTimer) return;
+  balanceTimer = setInterval(() => { void refreshBalancesQuietly(); }, BALANCE_POLL_MS);
+};
+
+const stopBalancePolling = () => {
+  if (balanceTimer) {
+    clearInterval(balanceTimer);
+    balanceTimer = null;
+  }
+};
+
 // Chain-native progress check (Subscan is an external link in the UI, not a
 // data source). Two jobs:
 // - upgrade 'in block' C2E transfers to 'finalized on consensus' by
@@ -115,6 +150,7 @@ export const checkFinality = async () => {
       const current = balances.get(dest);
       if (current != null && c2eArrived(tx, current)) {
         clearWatch(tx);
+        applyDestBalance(dest, current);
         tx.status = 'arrived';
         changed = true;
         addLog(`Funds arrived on Auto-EVM: ${current.toFixed(4)} AI3 at ${dest.slice(0, 6)}…${dest.slice(-4)} (transfer ${tx.hash?.slice(0, 10)}…)`);
@@ -288,6 +324,22 @@ const c2eArrived = (tx, destBalance) => {
 const c2eWatchAddress = (tx) =>
   tx.destination || state.substrateLinkedEvmAddress || state.evmAddress || null;
 
+// An arrival tick just read the destination balance fresh — fold it into the
+// matching wallet card right away instead of letting the "Fund arrived"
+// toast report money the balance row still doesn't show. Zero extra RPC:
+// the value was already fetched for the arrival test.
+const applyDestBalance = (dest, balance) => {
+  const formatted = balance.toFixed(4);
+  if (dest === state.evmAddress) {
+    state.evmBalance = formatted;
+  } else if (dest === state.substrateLinkedEvmAddress) {
+    state.substrateLinkedEvmBalance = formatted;
+  } else {
+    return;
+  }
+  commit();
+};
+
 const startArrivalWatch = (pendingTx, { quiet = false } = {}) => {
   stopArrivalWatch(pendingTx);
   // Start time is persisted with the tx so a resumed watch keeps the
@@ -310,6 +362,7 @@ const startArrivalWatch = (pendingTx, { quiet = false } = {}) => {
     const current = await evm.fetchEvmBalanceRaw(dest);
     if (current != null && c2eArrived(pendingTx, current)) {
       pendingTx.status = 'arrived';
+      applyDestBalance(dest, current);
       commit();
       addLog(`Funds arrived on Auto-EVM: ${current.toFixed(4)} AI3 at the destination`);
       toast({
@@ -719,6 +772,9 @@ export const performTransfer = async () => {
       currentPendingHash = hash;
       commit();
       addLog(`Consensus transfer broadcast: ${hash}`);
+      // Source balance just dropped (amount + fee) — refresh the wallet
+      // card now instead of waiting for the next poll.
+      void updateBalances();
       // Fallback: if WS status events are lost, find inclusion by scanning
       startInclusionWatch(hash, newTx);
     } else { // evmToConsensus via transporter precompile — any EVM address may send
@@ -762,6 +818,8 @@ export const performTransfer = async () => {
       state.currentStatus = '';
       commit();
       addLog(`EVM to Consensus transfer confirmed on Auto-EVM: ${hash}. Challenge period ~1 day before funds land on Consensus.`);
+      // EVM source balance dropped — refresh the wallet card now.
+      void updateBalances();
       alert({
         title: t('transfer.e2cConfirmed.title'),
         message: t('transfer.e2cConfirmed.message', [state.amount, state.consensusAddress]),
@@ -847,6 +905,7 @@ export const initEngine = () => {
   substrate.initReadOnlyApi();
   evm.initProvider();
   resumeTracking();
+  startBalancePolling();
   if (state.consensusAddress || state.evmAddress) {
     updateBalances();
   }
@@ -855,4 +914,5 @@ export const initEngine = () => {
 export const stopPolling = () => {
   stopArrivalWatch(); // no arg → every resumed watch
   stopInclusionWatch();
+  stopBalancePolling();
 };
