@@ -387,6 +387,14 @@ select:focus {
   font-size: 12px;
 }
 
+/* icon-only button (e.g. the balance refresh glyph) — glyph must be legible
+   on its own, so it runs larger than button text (family rule) */
+.btn.icon {
+  padding: 4px 8px;
+  line-height: 1;
+  font-size: 16px;
+}
+
 .btn.link {
   background: none;
   border: none;

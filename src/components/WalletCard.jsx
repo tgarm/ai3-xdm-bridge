@@ -63,12 +63,20 @@ function Balance({ value, loading }) {
   );
 }
 
+// Icon-only refresh (PermaDrive WalletBalance pattern): the glyph is the
+// label, the accessible name carries the meaning.
 function WalletActions({ onRefresh, refreshing, onDisconnect }) {
   const { t } = useI18n();
   return (
     <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-      <button className="btn small" onClick={onRefresh} disabled={refreshing}>
-        {refreshing ? '…' : t('wallet.refreshBalance')}
+      <button
+        className="btn ghost small icon"
+        onClick={onRefresh}
+        disabled={refreshing}
+        aria-label={t('wallet.refreshBalance')}
+        title={t('wallet.refreshBalance')}
+      >
+        ⟳
       </button>
       <button className="btn small ghost danger" onClick={onDisconnect}>
         {t('wallet.disconnect')}
