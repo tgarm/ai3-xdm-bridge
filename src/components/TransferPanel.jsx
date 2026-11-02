@@ -25,7 +25,7 @@ const PERCENTS = [25, 50, 75, 100];
 // Unknown keys fall back to the raw string instead of a missing-translation
 // marker, so new polkadot status types degrade gracefully.
 const STATUS_KEYS = new Set([
-  'pending', 'broadcast', 'inBlock', 'finalized',
+  'awaitingSignature', 'pending', 'broadcast', 'inBlock', 'finalized',
   'preparingFunds', 'sendingFunds', 'sending',
   'retracted', 'finalityTimeout', 'dropped', 'invalid', 'usurped',
 ]);

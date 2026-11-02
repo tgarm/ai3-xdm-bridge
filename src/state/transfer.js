@@ -633,21 +633,32 @@ export const performTransfer = async () => {
     });
     return;
   }
-  const transferTime = new Date();
-  const estimatedTime = state.direction === 'consensusToEVM' ? '~10–30 min' : '~1 day (challenge period)';
-  const estimatedTimeMs = state.direction === 'consensusToEVM' ? C2E_ARRIVAL_MS : E2C_CHALLENGE_MS;
-  const newTx = {
-    id: Date.now(),  // Simple ID for tracking
-    hash: null, // Will be set later
-    direction: state.direction,
-    amount: state.amount,
-    status: 'pending',
-    estimatedTime,
-    expectedArrival: new Date(transferTime.getTime() + estimatedTimeMs).toISOString(),
-    timestamp: transferTime.toISOString(),
+  // The tracking record is born only when the transfer actually enters the
+  // pipe — after the wallet has signed and the transaction is broadcast.
+  // While the signature prompt is open nothing shows in Progress: a rejected
+  // prompt leaves no noise, and the ETA countdown starts at broadcast rather
+  // than at the button click. (Broadcast — not inclusion — is the right birth
+  // moment: an already-broadcast transfer must stay visible and resumable
+  // through the inclusion-watch window.)
+  let newTx = null;
+  const buildRecord = (status, hash, extra) => {
+    const transferTime = new Date();
+    const estimatedTime = state.direction === 'consensusToEVM' ? '~10–30 min' : '~1 day (challenge period)';
+    const estimatedTimeMs = state.direction === 'consensusToEVM' ? C2E_ARRIVAL_MS : E2C_CHALLENGE_MS;
+    const record = {
+      id: Date.now(),  // Simple ID for tracking
+      hash,
+      direction: state.direction,
+      amount: state.amount,
+      status,
+      estimatedTime,
+      expectedArrival: new Date(transferTime.getTime() + estimatedTimeMs).toISOString(),
+      timestamp: transferTime.toISOString(),
+      ...extra,
+    };
+    state.transactions.push(record);
+    return record;
   };
-  state.transactions.push(newTx);
-  commit();
   addLog(`Initiating transfer: ${state.direction} ${state.amount} AI3`);
 
   try {
@@ -660,34 +671,35 @@ export const performTransfer = async () => {
           message: t('notifications.walletsNotConnected.message'),
           duration: 0,
         });
-        newTx.status = 'failed';
-        commit();
         return;
       }
       addLog('Creating Consensus to EVM transfer...');
       state.isTransferring = true;
-      state.currentStatus = 'pending';
+      // The extension's signature prompt opens (and blocks) inside
+      // performConsensusTransfer — point the user there instead of showing
+      // a live-looking transfer before anything was signed.
+      state.currentStatus = 'awaitingSignature';
       currentPendingHash = null; // Reset
       // Arrival detection is scoped to the actual destination and compares
       // against a FRESH pre-transfer balance — the state field can be a
       // stale localStorage carry-over from a previous session.
-      newTx.destination = state.evmAddress;
+      let arrivalBaseline;
       try {
         const fresh = await evm.fetchEvmBalanceRaw(state.evmAddress);
-        if (fresh != null) newTx.arrivalBaseline = fresh;
+        if (fresh != null) arrivalBaseline = fresh;
       } catch { /* no baseline → relaxed arrival rule (≥ amount) */ }
-      commit();
 
       // Record the submit height so a reloaded app can resume the inclusion
       // scan from here (one paced RPC call, worth it for cross-session
       // progress tracking).
+      let submitBlock = null;
       try {
         const header = await state.consensusApi.rpc.chain.getHeader();
-        newTx.submitBlock = header.number.toNumber();
-        commit();
+        submitBlock = header.number.toNumber();
       } catch (e) {
         addLog(`Could not read submit height (resume scan will start from head): ${e.message}`);
       }
+      commit();
 
       // Delegate to the substrate module (moved logic)
       const { unsubscribe, hash } = await substrate.performConsensusTransfer(
@@ -696,11 +708,17 @@ export const performTransfer = async () => {
         handleTransferStatus, // Pass callback for status handling
       );
 
-      newTx.hash = hash;
+      // Broadcast accepted — now (and only now) the transfer becomes a
+      // tracked record and its countdown starts.
+      newTx = buildRecord('pending', hash, {
+        destination: state.evmAddress,
+        arrivalBaseline,
+        submitBlock,
+      });
       newTx.unsubscribe = unsubscribe; // Track for cleanup if needed
       currentPendingHash = hash;
       commit();
-      addLog('Consensus transfer delegated and initiated');
+      addLog(`Consensus transfer broadcast: ${hash}`);
       // Fallback: if WS status events are lost, find inclusion by scanning
       startInclusionWatch(hash, newTx);
     } else { // evmToConsensus via transporter precompile — any EVM address may send
@@ -713,20 +731,18 @@ export const performTransfer = async () => {
           message: t('notifications.e2cProviderMissing'),
           duration: 0,
         });
-        newTx.status = 'failed';
-        commit();
         return;
       }
       // Destination's pre-transfer balance: the baseline the E2C arrival
       // watch compares against during the challenge period. If the balance
       // was never loaded, no baseline — the manual mark button covers it.
-      newTx.destination = state.consensusAddress;
+      let arrivalBaseline;
       if (state.consensusBalance != null) {
-        newTx.arrivalBaseline = parseFloat(state.consensusBalance) || 0;
+        arrivalBaseline = parseFloat(state.consensusBalance) || 0;
       }
       addLog(`Creating EVM to Consensus transfer (transporter precompile, ${src.kind} source ${src.from})...`);
       state.isTransferring = true;
-      state.currentStatus = 'sending';
+      state.currentStatus = 'awaitingSignature';
       commit();
 
       const { hash } = await substrate.performE2CTransfer(
@@ -735,8 +751,13 @@ export const performTransfer = async () => {
         amountWei
       );
 
-      newTx.hash = hash;
-      newTx.status = 'bridging';
+      // Confirmed on Auto-EVM — the record is born 'bridging': before this
+      // point there was nothing to track (a pending wallet prompt is not a
+      // transfer), and the challenge-period countdown starts here.
+      newTx = buildRecord('bridging', hash, {
+        destination: state.consensusAddress,
+        arrivalBaseline,
+      });
       state.isTransferring = false;
       state.currentStatus = '';
       commit();
@@ -750,16 +771,21 @@ export const performTransfer = async () => {
       armE2cWatches();
     }
   } catch (error) {
-    newTx.status = 'failed';
     state.isTransferring = false;
     state.currentStatus = '';
     currentPendingHash = null;
+    // A rejection before broadcast never created a record — Progress stays
+    // clean. A failure after broadcast keeps its record, marked failed so
+    // Refresh/resume can still inspect it.
+    if (newTx) {
+      newTx.status = 'failed';
+      stopArrivalWatch(newTx);
+      if (newTx.unsubscribe) {
+        newTx.unsubscribe();  // Cleanup if initiated
+      }
+    }
     commit();
     stopInclusionWatch();
-    stopArrivalWatch(newTx);
-    if (newTx.unsubscribe) {
-      newTx.unsubscribe();  // Cleanup if initiated
-    }
     addLog(`Transfer failed: ${error.message}`);
     console.error('Transfer failed:', error);
     // Distinguish "user said no in the wallet" (common, not an error worth

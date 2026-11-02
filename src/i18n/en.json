@@ -144,6 +144,7 @@
     "swapTitle": "Swap direction",
     "status": {
       "pending": "Pending",
+      "awaitingSignature": "Confirm in your wallet...",
       "broadcast": "Broadcast",
       "inBlock": "In block",
       "finalized": "Finalized",

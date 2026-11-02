@@ -144,6 +144,7 @@
     "swapTitle": "Cambiar dirección",
     "status": {
       "pending": "Pendiente",
+      "awaitingSignature": "Confirme en su cartera...",
       "broadcast": "Difundida",
       "inBlock": "En bloque",
       "finalized": "Finalizada",

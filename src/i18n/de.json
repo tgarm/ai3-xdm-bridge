@@ -144,6 +144,7 @@
     "swapTitle": "Richtung wechseln",
     "status": {
       "pending": "Ausstehend",
+      "awaitingSignature": "In der Wallet bestätigen...",
       "broadcast": "Übertragen",
       "inBlock": "In einem Block",
       "finalized": "Finalisiert",
