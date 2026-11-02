@@ -11,7 +11,6 @@
   "dependencies": {
     "@autonomys/auto-xdm": "^1.6.5",
     "@polkadot/api": "15.10.2",
-    "@polkadot/extension-dapp": "0.59.2",
     "@vercel/analytics": "^1.5.0",
     "ethers": "^6.15.0",
     "react": "^18.3.1",

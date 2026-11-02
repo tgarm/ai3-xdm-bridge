@@ -96,8 +96,6 @@
     "evmChain": "EVM-Kette",
     "consensusChain": "Konsens-Kette",
     "reconnect": "Erneut verbinden",
-    "connectMetamask": "MetaMask verbinden",
-    "connectSubwallet": "SubWallet/Talisman verbinden",
     "linkedEvmAddress": "Verknüpfte EVM-Adresse",
     "copyAddressTooltip": "Klicken, um die Adresse zu kopieren",
     "refreshBalance": "Kontostand aktualisieren",
@@ -105,7 +103,9 @@
     "connected": "Verbunden",
     "disconnected": "Nicht verbunden",
     "disconnect": "Trennen",
-    "evmNotDetected": "Keine EVM-Wallet-Erweiterung erkannt (MetaMask etc.)"
+    "evmNotDetected": "Kein Browser-EVM-Wallet erkannt — bitte MetaMask, SubWallet, Phantom oder ähnliches installieren.",
+    "noConsensusWallet": "Kein unterstütztes Consensus-Wallet erkannt — bitte SubWallet oder Talisman installieren.",
+    "evmWrongNetwork": "Die Wallet ist in einem anderen Netzwerk (Chain {0}) — für Übertragungen wird Auto EVM (870) benötigt."
   },
   "theme": {
     "title": "Dunkles/helles Thema umschalten"

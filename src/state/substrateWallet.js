@@ -1,15 +1,18 @@
 // src/state/substrateWallet.js
 //
-// Port of the P2-field-tested Vue composable useSubstrateWallet to the plain
-// singleton store. Chain-facing semantics are unchanged (paced providers, no
-// custom types, bare transporter.transfer construction); only the reactivity
-// wrapper (refs → state fields) and notifications (ElNotification → dialogs)
-// were adapted.
+// Consensus wallet session, connected PER WALLET: the user picks an
+// injected Substrate wallet (Talisman / SubWallet), we enable exactly that
+// extension and read only its accounts. Chain-facing semantics are
+// unchanged (paced providers, no custom types, bare transporter.transfer
+// construction). The polkadot{.js} extension-dapp helpers are gone —
+// extension-dapp merges ALL wallets' accounts into one list and its
+// registry only populates via web3Enable; per-wallet enable() gives a
+// deterministic signer for the wallet the user actually chose.
 
-import { web3Accounts, web3Enable, web3FromAddress } from '@polkadot/extension-dapp';
 import { ApiPromise } from '@polkadot/api';
 import { BrowserProvider } from 'ethers';
 import { decodeAddress, encodeAddress } from '@polkadot/util-crypto';
+import { consensusAccounts } from '@/lib/wallets';
 import { PacedWsProvider, probeProvider } from '@/lib/pacedProvider';
 import { CONSENSUS_RPC_CANDIDATES, AUTONOMYS_PREFIX, DECIMALS, DOMAIN_ID, EVM_RPC_HTTPS } from '@/constants';
 import { state, commit, addLog } from './engine';
@@ -72,9 +75,8 @@ async function reconnectActiveApi(deadInstance) {
         commit();
         await deadInstance.disconnect().catch(() => {});
         // The replacement needs the extension signer re-attached for sends.
-        if (state.consensusAccount) {
-            const injector = await web3FromAddress(state.consensusAccount.address).catch(() => null);
-            if (injector) replacement.setSigner(injector.signer);
+        if (state.consensusAccount && state.consensusInjector?.signer) {
+            replacement.setSigner(state.consensusInjector.signer);
         }
         addLog('Consensus connection restored automatically — wallet session preserved.');
         await updateBalance();
@@ -408,19 +410,37 @@ const fetchLinkedEvmAddress = async (source) => {
     }
 };
 
-// Connect Consensus wallet
-export const connect = async () => {
+// Connect one specific discovered Consensus wallet
+// ({extensionName, title, extension} from lib/wallets.js).
+export const connect = async (wallet) => {
     try {
-        addLog('Attempting to connect Consensus wallet...');
-        await web3Enable('ai3-transfer-app');
-        const allAccounts = await web3Accounts();
-        // SubWallet/Talisman also expose their EVM accounts here (type
-        // 'ethereum', 0x… addresses). Only consensus-chain accounts are
-        // usable on this side — decoding a 0x address into an Autonomys
-        // address would silently produce garbage.
-        const consensusAccounts = allAccounts.filter(acc => acc.type !== 'ethereum');
-        addLog(`web3Accounts: ${allAccounts.length} total, ${consensusAccounts.length} consensus-chain (EVM accounts filtered)`);
-        if (consensusAccounts.length === 0) {
+        if (!wallet?.extension?.enable) {
+            addLog('No consensus wallet selected.');
+            return;
+        }
+        addLog(`Attempting to connect Consensus wallet (${wallet.title})...`);
+        // Enable + account read with a hard timeout: a locked or hung
+        // extension must not leave the UI stuck on "connecting".
+        let timeout;
+        const enabled = await Promise.race([
+            (async () => {
+                const injector = await wallet.extension.enable('ai3-xdm-bridge');
+                if (!injector?.signer || typeof injector.accounts?.get !== 'function') {
+                    throw new Error('Invalid extension response (no signer or accounts)');
+                }
+                return injector;
+            })(),
+            new Promise((_, reject) => {
+                timeout = setTimeout(() => reject(new Error('Wallet did not respond within 30 s')), 30000);
+            }),
+        ]).finally(() => clearTimeout(timeout));
+
+        // Mixed wallets also expose EVM accounts (type 'ethereum', 0x…)
+        // and malformed entries — keep only valid AccountId32 accounts,
+        // re-encoded to the Autonomys prefix (lib/wallets.js).
+        const accounts = consensusAccounts(await enabled.accounts.get());
+        addLog(`${wallet.title}: ${accounts.length} consensus-chain account(s)`);
+        if (accounts.length === 0) {
             addLog('No consensus-chain accounts found in extension');
             toast({
                 type: 'warn',
@@ -430,19 +450,19 @@ export const connect = async () => {
             });
             return;
         }
-        state.substrateAccounts = consensusAccounts;
-        const account = consensusAccounts[0];
-        await activateAccount(account);
+        state.consensusInjector = enabled;
+        state.consensusWalletName = wallet.title;
+        state.consensusWalletSource = wallet.extensionName;
+        state.substrateAccounts = accounts;
+        await activateAccount(accounts[0]);
 
         // Balance first: a plain RPC read that must not wait on the
         // extension. Linked-EVM discovery runs AFTER, un-awaited — its
         // eth_requestAccounts blocks on the unlock prompt when the wallet
         // is locked, and hanging there used to leave the balance at 0.
-        // Read from the LOCAL account: a socket teardown mid-connect clears
-        // global state, and reading it back used to crash on null.meta.
         await updateBalance();
         addLog('Consensus connection successful');
-        fetchLinkedEvmAddress(account.meta.source).catch(() => {});
+        fetchLinkedEvmAddress(wallet.extensionName).catch(() => {});
     } catch (error) {
         console.error('Consensus connection failed:', error);
         addLog(`Consensus connection failed: ${error.message}`);
@@ -469,12 +489,12 @@ const activateAccount = async (account) => {
         state.consensusApi = await createApiInstance();
         commit();
     }
-    const injector = await web3FromAddress(account.address);
-    if (!injector) {
-        throw new Error('No injector found for address');
+    const signer = state.consensusInjector?.signer;
+    if (!signer) {
+        throw new Error('Wallet signer unavailable');
     }
-    state.consensusApi.setSigner(injector.signer);
-    addLog(`Active account: ${account.meta?.name || ''} ${state.consensusAddress}`);
+    state.consensusApi.setSigner(signer);
+    addLog(`Active account: ${account.name || ''} ${state.consensusAddress}`);
 };
 
 // Switch the active account (account selector in the wallet panel).
@@ -488,7 +508,7 @@ export const switchAccount = async (account) => {
 
         await activateAccount(account);
         await updateBalance();
-        fetchLinkedEvmAddress(account.meta.source).catch(() => {});
+        fetchLinkedEvmAddress(state.consensusWalletSource).catch(() => {});
     } catch (error) {
         addLog(`Account switch failed: ${error.message}`);
         toast({
@@ -503,6 +523,9 @@ export const switchAccount = async (account) => {
 export const disconnect = async () => {
     await disconnectApis();
     state.consensusAccount = null;
+    state.consensusInjector = null;
+    state.consensusWalletName = '';
+    state.consensusWalletSource = '';
     state.substrateAccounts = [];
     state.consensusBalance = null;
     state.consensusAddress = '';
@@ -511,6 +534,5 @@ export const disconnect = async () => {
     state.substrateLinkedEvmBalanceLoading = false;
     state.linkedEvmProvider = null;
     commit();
-    // Note: We don't clear localStorage as consensus address isn't stored there.
     addLog('Consensus wallet disconnected and state cleared.');
 };

@@ -55,6 +55,9 @@ export const state = {
   consensusApi: null, // signed API
   readOnlyConsensusApi: null,
   consensusAccount: null,
+  consensusInjector: null, // signer of the wallet the user picked (per-wallet connect)
+  consensusWalletName: '', // display title of that wallet (e.g. 'SubWallet')
+  consensusWalletSource: '', // its injectedWeb3 key (e.g. 'subwallet-js')
   substrateAccounts: [],
   // Balances are null until actually read — the UI shows '—' (never a
   // fake 0) until then.
@@ -65,10 +68,15 @@ export const state = {
   substrateLinkedEvmBalance: null,
   substrateLinkedEvmBalanceLoading: false,
   linkedEvmProvider: null,
-  // EVM wallet
-  evmProvider: null,
-  evmAddress: localStorage.getItem('evmAddress') || '',
-  evmBalance: localStorage.getItem('evmBalance') || null,
+  // EVM wallet — session-scoped (never restored from localStorage: a stale
+  // address paired with a different wallet's provider would sign from the
+  // wrong account).
+  evmProvider: null, // ethers BrowserProvider over evmRaw
+  evmRaw: null, // the chosen EIP-1193 provider
+  evmWalletLabel: '',
+  evmChainId: null, // hex-agnostic number; UI hints when ≠ Auto EVM
+  evmAddress: '',
+  evmBalance: null,
   evmBalanceLoading: false,
 };
 

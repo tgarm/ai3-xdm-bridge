@@ -1,17 +1,21 @@
 // src/components/WalletCard.jsx
 //
-// Both wallet cards (Consensus / Auto-EVM) share one layout: connect button
-// → address (click to copy) → balances. Kept as two subcomponents because
-// the Consensus side carries the account selector and the linked EVM row.
+// Both wallet cards (Consensus / Auto-EVM) share one layout: one button per
+// discovered wallet (PermaDrive pattern — with Phantom, SubWallet and
+// MetaMask installed, the user picks which one to use) → address (click to
+// copy) → balances. Kept as two subcomponents because the Consensus side
+// carries the account selector and the linked EVM row.
 //
 // Chain identity colors (shared family rule): consensus = teal, EVM =
 // purple. Card titles and the EVM-side rows inside the consensus card are
 // tinted accordingly so users learn passively which chain holds the money.
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useEngine } from '@/state/engine';
 import { useI18n } from '@/i18n';
 import { toast } from '@/ui/dialogs';
+import { EVM_CHAIN_ID } from '@/constants';
+import { discoverConsensusWallets, discoverEvmWallets } from '@/lib/wallets';
 import { consensusConnected, connectConsensus, connectEVM, disconnectConsensus, disconnectEVM, updateBalances, switchConsensusAccount, substrateAccountOptions } from '@/state/transfer';
 
 const truncate = (addr) => `${addr.slice(0, 6)}…${addr.slice(-4)}`;
@@ -73,19 +77,43 @@ function WalletActions({ onRefresh, refreshing, onDisconnect }) {
   );
 }
 
+// One button per discovered wallet; '…' while the connect prompt is open.
+function WalletButtons({ wallets, connecting, onConnect, nameKey }) {
+  return (
+    <div className="btn-group" style={{ marginTop: 2 }}>
+      {wallets.map((w, i) => (
+        <button key={`${w[nameKey] ?? w.title}-${i}`} className="btn" disabled={connecting} onClick={() => onConnect(w)}>
+          {connecting ? '…' : nameKey === 'name' ? w.name : w.title}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function ConsensusWallet() {
   const s = useEngine();
   const { t } = useI18n();
   const copyAddress = useCopyAddress();
   const [connecting, setConnecting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [wallets, setWallets] = useState(null);
   const connected = consensusConnected(s);
   const accounts = substrateAccountOptions(s);
 
-  const onButtonClick = async () => {
+  // Discovery is read-only (enable happens on click). Re-run whenever
+  // disconnected: covers wallets that inject after first paint and newly
+  // installed/enabled ones.
+  useEffect(() => {
+    if (connected) return undefined;
+    setWallets(discoverConsensusWallets());
+    const timer = setTimeout(() => setWallets(discoverConsensusWallets()), 800);
+    return () => clearTimeout(timer);
+  }, [connected]);
+
+  const onConnect = async (wallet) => {
     setConnecting(true);
     try {
-      await connectConsensus();
+      await connectConsensus(wallet);
     } finally {
       setConnecting(false);
     }
@@ -111,11 +139,11 @@ function ConsensusWallet() {
         <span className={`badge ${connected ? 'ok' : ''}`}>{connected ? t('wallet.connected') : t('wallet.disconnected')}</span>
       </div>
 
-      {!connected && (
-        <button className="btn primary big" onClick={onButtonClick} disabled={connecting}>
-          {connecting ? '…' : t('wallet.connectSubwallet')}
-        </button>
-      )}
+      {!connected && (wallets == null ? null : wallets.length === 0 ? (
+        <p className="wallet-note">{t('wallet.noConsensusWallet')}</p>
+      ) : (
+        <WalletButtons wallets={wallets} connecting={connecting} onConnect={onConnect} />
+      ))}
 
       {connected && (
         <>
@@ -178,13 +206,26 @@ function EvmWallet() {
   const copyAddress = useCopyAddress();
   const [connecting, setConnecting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [wallets, setWallets] = useState(null);
   const connected = !!s.evmAddress;
-  const hasInjected = typeof window.ethereum !== 'undefined';
 
-  const onButtonClick = async () => {
+  // Async discovery (EIP-6963 announcements take ~500 ms); re-run whenever
+  // disconnected, same as the consensus side.
+  useEffect(() => {
+    if (connected) return undefined;
+    let alive = true;
+    discoverEvmWallets().then((list) => {
+      if (alive) setWallets(list);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [connected]);
+
+  const onConnect = async (wallet) => {
     setConnecting(true);
     try {
-      await connectEVM();
+      await connectEVM(wallet);
     } finally {
       setConnecting(false);
     }
@@ -210,14 +251,11 @@ function EvmWallet() {
         <span className={`badge ${connected ? 'ok' : ''}`}>{connected ? t('wallet.connected') : t('wallet.disconnected')}</span>
       </div>
 
-      {!connected && !hasInjected && (
+      {!connected && (wallets == null ? null : wallets.length === 0 ? (
         <p className="wallet-note">{t('wallet.evmNotDetected')}</p>
-      )}
-      {!connected && (
-        <button className="btn primary big" onClick={onButtonClick} disabled={connecting || !hasInjected}>
-          {connecting ? '…' : t('wallet.connectMetamask')}
-        </button>
-      )}
+      ) : (
+        <WalletButtons wallets={wallets} connecting={connecting} onConnect={onConnect} nameKey="name" />
+      ))}
 
       {connected && (
         <>
@@ -230,6 +268,9 @@ function EvmWallet() {
             <span>{t('wallet.evmChain')}</span>
             <Balance value={s.evmBalance} loading={s.evmBalanceLoading} />
           </div>
+          {s.evmChainId != null && s.evmChainId !== EVM_CHAIN_ID && (
+            <p className="hint-line warn">{t('wallet.evmWrongNetwork', [String(s.evmChainId)])}</p>
+          )}
           <WalletActions
             onRefresh={onRefresh}
             refreshing={refreshing}

@@ -96,8 +96,6 @@
     "evmChain": "EVM 链",
     "consensusChain": "共识链",
     "reconnect": "重新连接",
-    "connectMetamask": "连接 MetaMask",
-    "connectSubwallet": "连接 SubWallet/Talisman",
     "linkedEvmAddress": "关联的EVM地址",
     "copyAddressTooltip": "点击复制地址",
     "refreshBalance": "刷新余额",
@@ -105,7 +103,9 @@
     "connected": "已连接",
     "disconnected": "未连接",
     "disconnect": "断开",
-    "evmNotDetected": "未检测到 EVM 钱包扩展（MetaMask 等）"
+    "evmNotDetected": "未检测到浏览器 EVM 钱包——请安装 MetaMask、SubWallet、Phantom 或同类。",
+    "noConsensusWallet": "未检测到支持的共识链钱包——请安装 SubWallet 或 Talisman。",
+    "evmWrongNetwork": "钱包在别的网络（链 {0}）——转账需要 Auto EVM（870）。"
   },
   "theme": {
     "title": "切换明暗主题"

@@ -76,7 +76,7 @@ export function consensusAddressOf(address) {
 export function substrateAccountOptions(s) {
   return (s.substrateAccounts || []).map(acc => ({
     address: acc.address,
-    label: `${acc.meta?.name || 'Account'} · ${consensusAddressOf(acc.address)}`,
+    label: `${acc.name || 'Account'} · ${consensusAddressOf(acc.address)}`,
   }));
 }
 
@@ -188,11 +188,13 @@ export const checkFinality = async () => {
       : `Progress checked — ${tracked} transfer(s) tracked, nothing new yet.`);
   }
 };
-export const connectConsensus = async () => {
-  await substrate.connect();
+// Both connects take the wallet the user picked in the UI (one button per
+// wallet — PermaDrive pattern).
+export const connectConsensus = async (wallet) => {
+  await substrate.connect(wallet);
   await checkFinality();
 };
-export const connectEVM = () => evm.connect();
+export const connectEVM = (wallet) => evm.connect(wallet);
 export const disconnectConsensus = () => substrate.disconnect();
 export const disconnectEVM = () => evm.disconnect();
 export const disconnectApis = () => substrate.disconnectApis();

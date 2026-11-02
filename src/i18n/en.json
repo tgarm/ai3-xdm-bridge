@@ -96,8 +96,6 @@
     "evmChain": "EVM Chain",
     "consensusChain": "Consensus Chain",
     "reconnect": "Reconnect",
-    "connectMetamask": "Connect MetaMask",
-    "connectSubwallet": "Connect SubWallet/Talisman",
     "linkedEvmAddress": "Linked EVM Address",
     "copyAddressTooltip": "Click to copy address",
     "refreshBalance": "Refresh Balance",
@@ -105,7 +103,9 @@
     "connected": "Connected",
     "disconnected": "Not connected",
     "disconnect": "Disconnect",
-    "evmNotDetected": "No EVM wallet extension detected (MetaMask etc.)"
+    "evmNotDetected": "No browser EVM wallet detected — install MetaMask, SubWallet, Phantom or similar.",
+    "noConsensusWallet": "No supported consensus wallet detected — install SubWallet or Talisman.",
+    "evmWrongNetwork": "The wallet is on another network (chain {0}) — transfers need Auto EVM (870)."
   },
   "theme": {
     "title": "Toggle dark / light theme"
