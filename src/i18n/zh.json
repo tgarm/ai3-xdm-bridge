@@ -108,7 +108,10 @@
     "evmWrongNetwork": "钱包在别的网络（链 {0}）——转账需要 Auto EVM（870）。"
   },
   "theme": {
-    "title": "切换明暗主题"
+    "light": "亮色",
+    "dark": "暗色",
+    "title": "当前{0}主题，点击切换",
+    "aria": "切换配色方案"
   },
   "logging": {
     "logs": "日志",

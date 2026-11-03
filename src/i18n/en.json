@@ -108,7 +108,10 @@
     "evmWrongNetwork": "The wallet is on another network (chain {0}) — transfers need Auto EVM (870)."
   },
   "theme": {
-    "title": "Toggle dark / light theme"
+    "light": "Light",
+    "dark": "Dark",
+    "title": "Current theme: {0}. Click to switch.",
+    "aria": "Toggle color scheme"
   },
   "logging": {
     "logs": "Logs",

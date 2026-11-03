@@ -108,7 +108,10 @@
     "evmWrongNetwork": "La wallet está en otra red (cadena {0}): las transferencias necesitan Auto EVM (870)."
   },
   "theme": {
-    "title": "Cambiar tema oscuro / claro"
+    "light": "Claro",
+    "dark": "Oscuro",
+    "title": "Tema actual: {0}. Haga clic para cambiar.",
+    "aria": "Cambiar esquema de color"
   },
   "logging": {
     "logs": "Registros",

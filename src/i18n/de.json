@@ -108,7 +108,10 @@
     "evmWrongNetwork": "Die Wallet ist in einem anderen Netzwerk (Chain {0}) — für Übertragungen wird Auto EVM (870) benötigt."
   },
   "theme": {
-    "title": "Dunkles/helles Thema umschalten"
+    "light": "Hell",
+    "dark": "Dunkel",
+    "title": "Aktuelles Farbschema: {0}. Zum Wechseln klicken.",
+    "aria": "Farbschema umschalten"
   },
   "logging": {
     "logs": "Protokolle",

@@ -6,14 +6,17 @@ import { useI18n } from '@/i18n';
 export function ThemeToggle() {
   const theme = useSyncExternalStore(subscribe, getTheme);
   const { t } = useI18n();
+  // Same shape as PermaDrive's toggle: glyph + current theme name, so the
+  // state is readable instead of an icon-only guess (family consistency).
+  const name = theme === 'light' ? t('theme.light') : t('theme.dark');
   return (
     <button
-      className="btn ghost small"
+      className="btn ghost small theme-toggle"
       onClick={toggleTheme}
-      title={t('theme.title')}
-      aria-label={t('theme.title')}
+      title={t('theme.title', [name])}
+      aria-label={t('theme.aria')}
     >
-      {theme === 'dark' ? '🌙' : '☀️'}
+      {theme === 'light' ? `☀ ${t('theme.light')}` : `☾ ${t('theme.dark')}`}
     </button>
   );
 }

@@ -31,8 +31,8 @@ export default function App() {
           </div>
         </div>
         <div className="header-controls">
-          <ThemeToggle />
           <LanguageSelect />
+          <ThemeToggle />
         </div>
       </header>
 
