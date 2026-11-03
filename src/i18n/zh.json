@@ -2,7 +2,7 @@
   "app": {
     "title": "AI3 跨域转账",
     "tagline": "Autonomys 跨域桥 · 纯前端",
-    "footer": "纯前端 · 私钥不离开钱包 · XDM 协议费约 0.01% · 最低转账 1 AI3",
+    "footer": "纯前端 · 私钥不离开钱包 · 本站不收任何费用（约 0.01% 的 XDM 协议费由网络在链上收取） · 最低转账 1 AI3",
     "source": "开源：源代码见 GitHub",
     "permadrive": "PermaDrive — 永久存储",
     "ai3land": "更多工具见 ai3.land"
@@ -135,7 +135,7 @@
     "e2cTitle": "Auto-EVM → 共识",
     "amountPlaceholder": "AI3 数量",
     "available": "可用余额",
-    "receive": "预计到账 ≈ {0} AI3（XDM 费约 0.01%）",
+    "receive": "预计到账 ≈ {0} AI3（已扣约 0.01% 的 XDM 链上费，由网络收取，本站不收费）",
     "needConsensusWallet": "请先连接共识链钱包",
     "needBothWallets": "请先连接共识链与 EVM 两个钱包",
     "amountTooLow": "最低转账 {0} AI3",
@@ -158,7 +158,7 @@
       "usurped": "被挤掉"
     },
     "minTransfer": "最小转账金额: {0} AI3",
-    "arrivalNoteC2E": "到账 ≈ 金额 × 99.99%（XDM 协议费约 0.01%）。通常 10–30 分钟，偶尔更久。",
+    "arrivalNoteC2E": "到账 ≈ 金额 × 99.99%（约 0.01% 的 XDM 协议费由网络在链上收取，本站不收费）。通常 10–30 分钟，偶尔更久。",
     "arrivalNoteE2C": "资金将在约 24 小时挑战期后到达共识链。",
     "amountPrecision": "最多支持 18 位小数，请调整金额。",
     "button": "转账",

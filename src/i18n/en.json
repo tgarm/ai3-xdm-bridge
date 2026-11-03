@@ -2,7 +2,7 @@
   "app": {
     "title": "AI3 Cross-Domain Transfer",
     "tagline": "Autonomys cross-domain bridge · pure frontend",
-    "footer": "Pure frontend · keys stay in your wallet · XDM protocol fee ~0.01% · min transfer 1 AI3",
+    "footer": "Pure frontend · keys stay in your wallet · no fees from this site (the ~0.01% XDM protocol fee is charged on-chain by the network) · min transfer 1 AI3",
     "source": "Open source: source code on GitHub",
     "permadrive": "PermaDrive — permanent storage",
     "ai3land": "more tools at ai3.land"
@@ -135,7 +135,7 @@
     "e2cTitle": "Auto-EVM → Consensus",
     "amountPlaceholder": "Amount in AI3",
     "available": "Available",
-    "receive": "Estimated receipt ≈ {0} AI3 (XDM fee ~0.01%)",
+    "receive": "Estimated receipt ≈ {0} AI3 (after the ~0.01% XDM fee, charged on-chain by the network; this site charges nothing)",
     "needConsensusWallet": "Connect the Consensus wallet to transfer",
     "needBothWallets": "Connect both wallets to transfer",
     "amountTooLow": "Minimum transfer is {0} AI3",
@@ -158,7 +158,7 @@
       "usurped": "Usurped"
     },
     "minTransfer": "Minimum transfer: {0} AI3",
-    "arrivalNoteC2E": "Arrival ≈ amount × 99.99% (XDM protocol fee ~0.01%). Usually 10–30 minutes, occasionally longer.",
+    "arrivalNoteC2E": "Arrival ≈ amount × 99.99% (the ~0.01% XDM protocol fee is charged on-chain by the network; this site charges nothing). Usually 10–30 minutes, occasionally longer.",
     "arrivalNoteE2C": "Funds arrive on Consensus after the ~24-hour challenge period.",
     "amountPrecision": "At most 18 decimal places are supported. Please adjust the amount.",
     "button": "Transfer",

@@ -2,7 +2,7 @@
   "app": {
     "title": "AI3 Cross-Domain Transfer",
     "tagline": "Autonomys Cross-Domain-Bridge · reines Frontend",
-    "footer": "Reines Frontend · Schlüssel bleiben in Ihrer Wallet · XDM-Gebühr ca. 0,01 % · Mindestübertragung 1 AI3",
+    "footer": "Reines Frontend · Schlüssel bleiben in Ihrer Wallet · keine Gebühren durch diese Seite (die XDM-Gebühr von ca. 0,01 % wird on-chain vom Netzwerk erhoben) · Mindestübertragung 1 AI3",
     "source": "Open Source: Quellcode auf GitHub",
     "permadrive": "PermaDrive — persistente Speicherung",
     "ai3land": "mehr Tools auf ai3.land"
@@ -135,7 +135,7 @@
     "e2cTitle": "Auto-EVM → Konsens",
     "amountPlaceholder": "Betrag in AI3",
     "available": "Verfügbar",
-    "receive": "Voraussichtlicher Empfang ≈ {0} AI3 (XDM-Gebühr ca. 0,01 %)",
+    "receive": "Voraussichtlicher Empfang ≈ {0} AI3 (abzüglich der XDM-Gebühr von ca. 0,01 %, on-chain vom Netzwerk erhoben; diese Seite erhebt keine Gebühr)",
     "needConsensusWallet": "Bitte verbinden Sie die Konsens-Wallet, um zu übertragen",
     "needBothWallets": "Bitte verbinden Sie beide Wallets, um zu übertragen",
     "amountTooLow": "Mindestübertragung ist {0} AI3",
@@ -165,7 +165,7 @@
       "message": "Ihre Übertragung wurde erfolgreich eingereicht und in einen Block aufgenommen. Es wird erwartet, dass sie nach ungefähr 14.400 Blöcken (ca. 24 Stunden) auf der Konsens-Kette ankommt. Sie können dieses Fenster jetzt sicher schließen oder eine weitere Übertragung starten.",
       "confirmButton": "OK"
     },
-    "arrivalNoteC2E": "Ankunft ≈ Betrag × 99,99 % (XDM-Protokollgebühr ca. 0,01 %). Meist 10–30 Minuten, gelegentlich länger.",
+    "arrivalNoteC2E": "Ankunft ≈ Betrag × 99,99 % (die XDM-Protokollgebühr von ca. 0,01 % wird on-chain vom Netzwerk erhoben; diese Seite erhebt keine Gebühr). Meist 10–30 Minuten, gelegentlich länger.",
     "arrivalNoteE2C": "Das Guthaben erreicht die Konsens-Kette nach der ca. 24-stündigen Challenge-Phase.",
     "amountPrecision": "Es sind höchstens 18 Nachkommastellen erlaubt. Bitte passen Sie den Betrag an.",
     "e2cConfirmed": {

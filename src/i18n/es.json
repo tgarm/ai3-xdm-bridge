@@ -2,7 +2,7 @@
   "app": {
     "title": "Transferencia Interdominio AI3",
     "tagline": "Puente interdominio de Autonomys · frontend puro",
-    "footer": "Frontend puro · las claves nunca salen de su cartera · comisión XDM ~0,01 % · transferencia mínima 1 AI3",
+    "footer": "Frontend puro · las claves nunca salen de su cartera · sin comisiones de este sitio (la comisión XDM de ~0,01 % la cobra la red on-chain) · transferencia mínima 1 AI3",
     "source": "Código abierto: código fuente en GitHub",
     "permadrive": "PermaDrive — almacenamiento permanente",
     "ai3land": "más herramientas en ai3.land"
@@ -135,7 +135,7 @@
     "e2cTitle": "Auto-EVM → Consenso",
     "amountPlaceholder": "Cantidad en AI3",
     "available": "Disponible",
-    "receive": "Recepción estimada ≈ {0} AI3 (comisión XDM ~0,01 %)",
+    "receive": "Recepción estimada ≈ {0} AI3 (tras la comisión XDM de ~0,01 %, cobrada on-chain por la red; este sitio no cobra nada)",
     "needConsensusWallet": "Conecte la cartera de Consenso para transferir",
     "needBothWallets": "Conecte ambas carteras para transferir",
     "amountTooLow": "La transferencia mínima es {0} AI3",
@@ -165,7 +165,7 @@
       "message": "Su transferencia ha sido enviada con éxito e incluida en un bloque. Se espera que llegue a la cadena de Consenso después de aproximadamente 14,400 bloques (alrededor de 24 horas). Ahora puede cerrar esta ventana de forma segura o iniciar otra transferencia.",
       "confirmButton": "OK"
     },
-    "arrivalNoteC2E": "Llegada ≈ cantidad × 99,99 % (comisión del protocolo XDM ~0,01 %). Normalmente 10–30 minutos, ocasionalmente más.",
+    "arrivalNoteC2E": "Llegada ≈ cantidad × 99,99 % (la comisión del protocolo XDM, ~0,01 %, la cobra la red on-chain; este sitio no cobra nada). Normalmente 10–30 minutos, ocasionalmente más.",
     "arrivalNoteE2C": "Los fondos llegan a Consenso tras el período de desafío de ~24 horas.",
     "amountPrecision": "Se admiten como máximo 18 decimales. Ajuste la cantidad.",
     "e2cConfirmed": {
